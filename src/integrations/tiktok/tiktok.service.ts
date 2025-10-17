@@ -54,7 +54,23 @@ export class TikTokService {
     }
 
     const token = await this.exchangeCodeForToken(dto.code);
-    const userInfo = await this.fetchUserInfo(token.accessToken);
+    this.logger.debug?.(
+      `TikTok token scopes granted: ${token.scope.join(', ') || '(none)'}`,
+    );
+    const userInfo = await this.fetchUserInfo(token.accessToken).catch(
+      (error: unknown) => {
+        const errMessage =
+          error instanceof Error ? error.message : String(error);
+        this.logger.warn(
+          `Proceeding without TikTok profile details: ${errMessage}`,
+        );
+        return {
+          openId: token.openId,
+          displayName: null,
+          avatarUrl: null,
+        };
+      },
+    );
 
     const now = new Date();
     const timezoneOffsetMinutes = this.parseTimezone(dto.timezone);
@@ -149,9 +165,13 @@ export class TikTokService {
     const user: any = data?.user ?? {};
 
     if (!response.ok) {
-      const message =
-        (typeof payload === 'object' && payload?.message) ||
-        'TikTok user info retrieval failed';
+      const message = this.extractErrorMessage(payload) ?? 'TikTok user info retrieval failed';
+      this.logger.warn(
+        `TikTok user info request failed (status ${response.status}): ${message}`,
+      );
+      this.logger.debug?.(
+        `TikTok user info error payload: ${JSON.stringify(payload)}`,
+      );
       throw new BadRequestException(message);
     }
 
@@ -216,6 +236,9 @@ export class TikTokService {
       return token.openId;
     }
 
+    this.logger.warn(
+      `Access token was issued without open_id. Requested scopes: ${token.scope.join(', ')}`,
+    );
     throw new InternalServerErrorException(
       'TikTok response did not include an open_id',
     );
@@ -237,6 +260,36 @@ export class TikTokService {
     } catch {
       return undefined;
     }
+  }
+
+  private extractErrorMessage(payload: any): string | undefined {
+    if (!payload || typeof payload !== 'object') {
+      return undefined;
+    }
+
+    if (typeof payload.message === 'string' && payload.message.trim().length > 0) {
+      return payload.message;
+    }
+
+    if (
+      typeof payload.error === 'object' &&
+      payload.error !== null &&
+      typeof payload.error.message === 'string'
+    ) {
+      return payload.error.message;
+    }
+
+    if (
+      typeof payload.data === 'object' &&
+      payload.data !== null &&
+      typeof (payload.data as any).error === 'object' &&
+      (payload.data as any).error !== null &&
+      typeof (payload.data as any).error.message === 'string'
+    ) {
+      return (payload.data as any).error.message;
+    }
+
+    return undefined;
   }
 
   private buildMockAccount(dto: ConnectTikTokDto): TikTokAccount {
