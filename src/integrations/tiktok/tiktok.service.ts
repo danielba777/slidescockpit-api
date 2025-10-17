@@ -1,10 +1,10 @@
 import {
   BadRequestException,
   Injectable,
-  InternalServerErrorException,
   Logger,
+  InternalServerErrorException,
 } from '@nestjs/common';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 import { ConnectTikTokDto } from './dto/connect-tiktok.dto';
 import { TikTokAccountRepository } from './tiktok-account.repository';
@@ -75,8 +75,10 @@ export class TikTokService {
     const now = new Date();
     const timezoneOffsetMinutes = this.parseTimezone(dto.timezone);
 
+    const openId = userInfo.openId ?? token.openId ?? this.generateFallbackOpenId(dto.code);
+
     const account: TikTokAccount = {
-      openId: userInfo.openId ?? token.openId ?? this.ensureOpenId(token),
+      openId,
       displayName: userInfo.displayName,
       avatarUrl: userInfo.avatarUrl,
       accessToken: token.accessToken,
@@ -231,17 +233,11 @@ export class TikTokService {
     return new Date(base + duration).toISOString();
   }
 
-  private ensureOpenId(token: OAuthTokenResponse): string {
-    if (token.openId) {
-      return token.openId;
-    }
-
+  private generateFallbackOpenId(code: string): string {
     this.logger.warn(
-      `Access token was issued without open_id. Requested scopes: ${token.scope.join(', ')}`,
+      'TikTok did not include an open_id in either the token or user info response. Falling back to hashed code.',
     );
-    throw new InternalServerErrorException(
-      'TikTok response did not include an open_id',
-    );
+    return `fallback_${createHash('sha256').update(code).digest('hex').slice(0, 24)}`;
   }
 
   private requireEnv(name: string): string {
