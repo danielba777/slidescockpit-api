@@ -4,7 +4,7 @@ import {
   Logger,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 
 import { ConnectTikTokDto } from './dto/connect-tiktok.dto';
 import { TikTokAccountRepository } from './tiktok-account.repository';
@@ -23,6 +23,7 @@ interface TikTokUserInfo {
   openId: string | null;
   displayName: string | null;
   username: string | null;
+  unionId: string | null;
   avatarUrl: string | null;
 }
 
@@ -32,6 +33,13 @@ export class TikTokService {
   private readonly clientKey = this.requireEnv('TIKTOK_CLIENT_KEY');
   private readonly clientSecret = this.requireEnv('TIKTOK_CLIENT_SECRET');
   private readonly redirectUri = this.requireEnv('TIKTOK_REDIRECT_URI');
+  private readonly requiredScopes = [
+    'user.info.basic',
+    'user.info.profile',
+    'video.list',
+    'video.upload',
+    'video.publish',
+  ];
   private readonly scopes = this.getScopes();
   private readonly forceVerify =
     (process.env.TIKTOK_FORCE_VERIFY ?? 'false').toLowerCase() === 'true';
@@ -58,32 +66,21 @@ export class TikTokService {
     this.logger.debug?.(
       `TikTok token scopes granted: ${token.scope.join(', ') || '(none)'}`,
     );
-    const userInfo = await this.fetchUserInfo(token.accessToken).catch(
-      (error: unknown) => {
-        const errMessage =
-          error instanceof Error ? error.message : String(error);
-        this.logger.warn(
-          `Proceeding without TikTok profile details: ${errMessage}`,
-        );
-        return {
-          openId: token.openId,
-          displayName: null,
-          username: null,
-          avatarUrl: null,
-        };
-      },
-    );
+    this.ensureRequiredScopes(token.scope);
+
+    const userInfo = await this.fetchUserInfo(token.accessToken);
 
     const now = new Date();
     const timezoneOffsetMinutes = this.parseTimezone(dto.timezone);
 
-    const openId = userInfo.openId ?? token.openId ?? this.generateFallbackOpenId(dto.code, userId);
+    const openId = userInfo.openId ?? token.openId ?? this.ensureOpenId(token);
 
     const account: TikTokAccount = {
       userId,
       openId,
       displayName: userInfo.displayName,
       username: userInfo.username ?? userInfo.displayName ?? openId,
+      unionId: userInfo.unionId,
       avatarUrl: userInfo.avatarUrl,
       accessToken: token.accessToken,
       refreshToken: token.refreshToken,
@@ -154,7 +151,7 @@ export class TikTokService {
 
   private async fetchUserInfo(accessToken: string): Promise<TikTokUserInfo> {
     const params = new URLSearchParams({
-      fields: 'open_id,display_name,avatar_url,username',
+      fields: 'open_id,display_name,avatar_url,username,union_id',
     });
 
     const response = await fetch(
@@ -190,6 +187,7 @@ export class TikTokService {
       displayName:
         typeof user?.display_name === 'string' ? user.display_name : null,
       username: typeof user?.username === 'string' ? user.username : null,
+      unionId: typeof user?.union_id === 'string' ? user.union_id : null,
       avatarUrl:
         typeof user?.avatar_url === 'string' ? user.avatar_url : null,
     };
@@ -213,14 +211,15 @@ export class TikTokService {
 
   private getScopes(): string {
     const fromEnv = process.env.TIKTOK_SCOPES;
-    if (fromEnv && fromEnv.trim().length > 0) {
-      return fromEnv
-        .split(',')
-        .map((item) => item.trim())
-        .filter(Boolean)
-        .join(',');
-    }
-    return 'user.info.basic,video.list,video.upload';
+    const envScopes = fromEnv
+      ? fromEnv
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [];
+
+    const combined = new Set<string>([...this.requiredScopes, ...envScopes]);
+    return Array.from(combined).join(',');
   }
 
   private parseTimezone(value?: string): number | null {
@@ -242,14 +241,28 @@ export class TikTokService {
     return new Date(base + duration).toISOString();
   }
 
-  private generateFallbackOpenId(code: string, userId: string): string {
-    this.logger.warn(
-      'TikTok did not include an open_id in either the token or user info response. Falling back to hashed code.',
+  private ensureRequiredScopes(granted: string[]): void {
+    const missing = this.requiredScopes.filter(
+      (scope) => !granted.includes(scope),
     );
-    return `fallback_${createHash('sha256')
-      .update(`${userId}:${code}`)
-      .digest('hex')
-      .slice(0, 24)}`;
+
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `TikTok did not grant the required permissions (${missing.join(
+          ', ',
+        )}). Please re-authorize and make sure all requested scopes are approved.`,
+      );
+    }
+  }
+
+  private ensureOpenId(token: OAuthTokenResponse): string {
+    if (typeof token.openId === 'string' && token.openId.trim().length > 0) {
+      return token.openId.trim();
+    }
+
+    throw new BadRequestException(
+      'TikTok did not return the open_id for this account. Please ensure the app is approved for the user.info.profile scope and try connecting again.',
+    );
   }
 
   private requireEnv(name: string): string {
@@ -311,6 +324,7 @@ export class TikTokService {
       openId,
       displayName: 'Mock TikTok Account',
       username: `mock_${openId.slice(-4)}`,
+      unionId: null,
       avatarUrl: null,
       accessToken,
       refreshToken,

@@ -105,6 +105,8 @@ export class TikTokAccountRepository {
           : null,
       username:
         typeof candidate.username === 'string' ? candidate.username : null,
+      unionId:
+        typeof candidate.unionId === 'string' ? candidate.unionId : null,
       avatarUrl:
         typeof candidate.avatarUrl === 'string' ? candidate.avatarUrl : null,
       accessToken:

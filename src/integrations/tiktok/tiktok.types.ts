@@ -3,6 +3,7 @@ export interface TikTokAccount {
   openId: string;
   displayName: string | null;
   username: string | null;
+  unionId: string | null;
   avatarUrl: string | null;
   accessToken: string;
   refreshToken: string | null;
