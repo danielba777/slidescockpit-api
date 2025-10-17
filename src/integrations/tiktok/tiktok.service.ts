@@ -1,10 +1,10 @@
 import {
   BadRequestException,
   Injectable,
-  Logger,
   InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 import { ConnectTikTokDto } from './dto/connect-tiktok.dto';
 import { TikTokAccountRepository } from './tiktok-account.repository';
@@ -50,19 +50,23 @@ export class TikTokService {
     private readonly repository: TikTokAccountRepository,
   ) {}
 
-  start(state: string): { url: string } {
-    const url = this.buildAuthorizeUrl(state);
+  start(state: string, codeVerifier: string): { url: string } {
+    const url = this.buildAuthorizeUrl(state, codeVerifier);
     return { url };
   }
 
-  async connect(userId: string, dto: ConnectTikTokDto): Promise<TikTokAccount> {
+  async connect(
+    userId: string,
+    dto: ConnectTikTokDto,
+    codeVerifier: string,
+  ): Promise<TikTokAccount> {
     if (this.mockMode) {
       const account = this.buildMockAccount(dto, userId);
       await this.repository.upsertAccount(account);
       return account;
     }
 
-    const token = await this.exchangeCodeForToken(dto.code);
+    const token = await this.exchangeCodeForToken(dto.code, codeVerifier);
     this.logger.debug?.(
       `TikTok token scopes granted: ${token.scope.join(', ') || '(none)'}`,
     );
@@ -73,13 +77,14 @@ export class TikTokService {
     const now = new Date();
     const timezoneOffsetMinutes = this.parseTimezone(dto.timezone);
 
-    const openId = userInfo.openId ?? token.openId ?? this.ensureOpenId(token);
+    const rawOpenId = userInfo.openId ?? token.openId ?? this.ensureOpenId(token);
+    const normalizedOpenId = this.normalizeOpenId(rawOpenId);
 
     const account: TikTokAccount = {
       userId,
-      openId,
+      openId: normalizedOpenId,
       displayName: userInfo.displayName,
-      username: userInfo.username ?? userInfo.displayName ?? openId,
+      username: userInfo.username ?? userInfo.displayName ?? normalizedOpenId,
       unionId: userInfo.unionId,
       avatarUrl: userInfo.avatarUrl,
       accessToken: token.accessToken,
@@ -100,52 +105,59 @@ export class TikTokService {
     return this.repository.listAccountsForUser(userId);
   }
 
-  private async exchangeCodeForToken(code: string): Promise<OAuthTokenResponse> {
+  private async exchangeCodeForToken(
+    code: string,
+    codeVerifier: string,
+  ): Promise<OAuthTokenResponse> {
+    const form = new URLSearchParams({
+      client_key: this.clientKey,
+      client_secret: this.clientSecret,
+      code,
+      grant_type: 'authorization_code',
+      redirect_uri: this.redirectUri,
+    });
+
+    if (codeVerifier && codeVerifier.length > 0) {
+      form.set('code_verifier', codeVerifier);
+    }
+
     const response = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify({
-        client_key: this.clientKey,
-        client_secret: this.clientSecret,
-        code,
-        grant_type: 'authorization_code',
-        redirect_uri: this.redirectUri,
-      }),
+      body: form.toString(),
     }).catch((error: unknown) => {
       this.logger.error(`Failed to reach TikTok token endpoint`, error as Error);
       throw new BadRequestException('Unable to reach TikTok token endpoint');
     });
 
     const payload = await this.safeJson(response);
-    const data: any = payload?.data ?? payload;
+    const data = this.extractDataObject(payload);
 
     if (!response.ok) {
       const message =
-        (typeof data === 'object' && data?.message) ||
-        (typeof data?.error_msg === 'string' && data.error_msg) ||
+        (typeof data === 'object' && (data as any)?.message) ||
+        (typeof (data as any)?.error_msg === 'string' && (data as any).error_msg) ||
         'TikTok token exchange failed';
       throw new BadRequestException(message);
     }
 
-    const scope = Array.isArray(data?.scope)
-      ? data.scope
-      : typeof data?.scope === 'string'
-      ? data.scope.split(',').map((entry: string) => entry.trim()).filter(Boolean)
-      : [];
+    const scope = this.parseScopes(
+      (data as any)?.scope ?? (payload as any)?.scope ?? [],
+    );
 
     return {
-      accessToken: data?.access_token,
-      refreshToken: data?.refresh_token ?? null,
+      accessToken: (data as any)?.access_token,
+      refreshToken: (data as any)?.refresh_token ?? null,
       expiresIn:
-        typeof data?.expires_in === 'number' ? data.expires_in : null,
+        typeof (data as any)?.expires_in === 'number' ? (data as any).expires_in : null,
       refreshExpiresIn:
-        typeof data?.refresh_expires_in === 'number'
-          ? data.refresh_expires_in
+        typeof (data as any)?.refresh_expires_in === 'number'
+          ? (data as any).refresh_expires_in
           : null,
       scope,
-      openId: typeof data?.open_id === 'string' ? data.open_id : null,
+      openId: typeof (data as any)?.open_id === 'string' ? (data as any).open_id : null,
     };
   }
 
@@ -168,7 +180,7 @@ export class TikTokService {
     });
 
     const payload = await this.safeJson(response);
-    const data: any = payload?.data ?? {};
+    const data: any = this.extractDataObject(payload) ?? {};
     const user: any = data?.user ?? {};
 
     if (!response.ok) {
@@ -193,13 +205,16 @@ export class TikTokService {
     };
   }
 
-  private buildAuthorizeUrl(state: string): string {
+  private buildAuthorizeUrl(state: string, codeVerifier: string): string {
+    const codeChallenge = this.buildCodeChallenge(codeVerifier);
     const params = new URLSearchParams({
       client_key: this.clientKey,
       scope: this.scopes,
       response_type: 'code',
       redirect_uri: this.redirectUri,
       state,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
     });
 
     if (this.forceVerify) {
@@ -242,8 +257,9 @@ export class TikTokService {
   }
 
   private ensureRequiredScopes(granted: string[]): void {
+    const grantedSet = new Set(granted.map((scope) => scope.trim()));
     const missing = this.requiredScopes.filter(
-      (scope) => !granted.includes(scope),
+      (scope) => !grantedSet.has(scope),
     );
 
     if (missing.length > 0) {
@@ -263,6 +279,44 @@ export class TikTokService {
     throw new BadRequestException(
       'TikTok did not return the open_id for this account. Please ensure the app is approved for the user.info.profile scope and try connecting again.',
     );
+  }
+
+  private normalizeOpenId(openId: string): string {
+    return openId.replace(/-/g, '').trim();
+  }
+
+  private buildCodeChallenge(verifier: string): string {
+    const hash = createHash('sha256').update(verifier).digest('base64');
+    return hash.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  }
+
+  private parseScopes(scopeValue: unknown): string[] {
+    if (Array.isArray(scopeValue)) {
+      return scopeValue
+        .map((entry) => (typeof entry === 'string' ? entry : String(entry)))
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+    }
+
+    if (typeof scopeValue === 'string') {
+      return scopeValue
+        .split(/[\s,]+/)
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+    }
+
+    return [];
+  }
+
+  private extractDataObject(payload: any): any {
+    if (payload && typeof payload === 'object' && 'data' in payload) {
+      const data = (payload as any).data;
+      if (data && typeof data === 'object') {
+        return data;
+      }
+    }
+
+    return payload;
   }
 
   private requireEnv(name: string): string {
@@ -318,19 +372,20 @@ export class TikTokService {
     const accessToken = `mock_access_${randomBytes(8).toString('hex')}`;
     const refreshToken = `mock_refresh_${randomBytes(8).toString('hex')}`;
     const openId = `mock_${randomBytes(6).toString('hex')}`;
+    const normalizedOpenId = this.normalizeOpenId(openId);
 
     return {
       userId,
-      openId,
+      openId: normalizedOpenId,
       displayName: 'Mock TikTok Account',
-      username: `mock_${openId.slice(-4)}`,
+      username: `mock_${normalizedOpenId.slice(-4)}`,
       unionId: null,
       avatarUrl: null,
       accessToken,
       refreshToken,
       expiresAt: this.calculateExpiry(now, 7200),
       refreshExpiresAt: this.calculateExpiry(now, 3600 * 24 * 30),
-      scope: this.scopes.split(',').map((item) => item.trim()).filter(Boolean),
+      scope: [...this.requiredScopes],
       timezoneOffsetMinutes: this.parseTimezone(dto.timezone),
       connectedAt: now.toISOString(),
       updatedAt: now.toISOString(),

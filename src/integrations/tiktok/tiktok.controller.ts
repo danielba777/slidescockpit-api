@@ -15,14 +15,18 @@ export class TikTokController {
   start(@Headers('x-user-id') userId: string) {
     const resolvedUserId = this.ensureUserId(userId);
     const pendingState = this.sessionService.registerState(resolvedUserId);
-    return this.tikTokService.start(pendingState.state);
+    return this.tikTokService.start(pendingState.state, pendingState.codeVerifier);
   }
 
   @Post('connect')
   async connect(@Headers('x-user-id') userId: string, @Body() dto: ConnectTikTokDto) {
     const resolvedUserId = this.ensureUserId(userId);
-    this.sessionService.consumeState(resolvedUserId, dto.state);
-    const account = await this.tikTokService.connect(resolvedUserId, dto);
+    const pendingState = this.sessionService.consumeState(resolvedUserId, dto.state);
+    const account = await this.tikTokService.connect(
+      resolvedUserId,
+      dto,
+      pendingState.codeVerifier,
+    );
     const { accessToken, refreshToken, ...publicAccount } = account;
 
     return {

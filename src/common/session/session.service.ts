@@ -19,6 +19,7 @@ export interface SessionData {
 interface PendingState {
   sessionId: string;
   state: string;
+  codeVerifier: string;
   createdAt: number;
   expiresAt: number;
 }
@@ -30,7 +31,7 @@ export class SessionService {
   private readonly sessionCookieName = 'postiz_auth';
   private readonly sessionTtlMs = 1000 * 60 * 60 * 12; // 12 hours
   private readonly stateTtlMs = 1000 * 60 * 5; // 5 minutes
-
+  
   createSession(user: SessionUser): SessionData {
     const token = randomUUID();
     const id = randomUUID();
@@ -102,11 +103,13 @@ export class SessionService {
 
   registerState(sessionId: string): PendingState {
     const state = randomBytes(16).toString('hex');
+    const codeVerifier = this.generateCodeVerifier();
     const createdAt = Date.now();
     const expiresAt = createdAt + this.stateTtlMs;
     const pending: PendingState = {
       sessionId,
       state,
+      codeVerifier,
       createdAt,
       expiresAt,
     };
@@ -154,5 +157,13 @@ export class SessionService {
 
     return cookies[this.sessionCookieName];
   }
-}
 
+  private generateCodeVerifier(): string {
+    // 32 bytes => 43 character base64url string, within recommended 43-128 range
+    return randomBytes(32)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/g, '');
+  }
+}
