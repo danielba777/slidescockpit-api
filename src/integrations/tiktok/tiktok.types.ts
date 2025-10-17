@@ -1,6 +1,8 @@
 export interface TikTokAccount {
+  userId: string;
   openId: string;
   displayName: string | null;
+  username: string | null;
   avatarUrl: string | null;
   accessToken: string;
   refreshToken: string | null;
@@ -11,4 +13,3 @@ export interface TikTokAccount {
   connectedAt: string;
   updatedAt: string;
 }
-

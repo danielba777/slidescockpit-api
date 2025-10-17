@@ -24,9 +24,16 @@ export class TikTokAccountRepository {
     return [...this.cache];
   }
 
+  async listAccountsForUser(userId: string): Promise<TikTokAccount[]> {
+    await this.ready;
+    return this.cache.filter((account) => account.userId === userId);
+  }
+
   async upsertAccount(account: TikTokAccount): Promise<TikTokAccount> {
     await this.ready;
-    const index = this.cache.findIndex((item) => item.openId === account.openId);
+    const index = this.cache.findIndex(
+      (item) => item.openId === account.openId && item.userId === account.userId,
+    );
     if (index >= 0) {
       this.cache[index] = account;
     } else {
@@ -41,11 +48,14 @@ export class TikTokAccountRepository {
     try {
       const content = await readFile(this.storagePath, 'utf8');
       const parsed: unknown = JSON.parse(content);
-      if (Array.isArray(parsed)) {
-        this.cache = parsed.filter(this.isTikTokAccount);
-      } else {
+      if (!Array.isArray(parsed)) {
         this.cache = [];
+        return;
       }
+
+      this.cache = parsed
+        .map(this.normalizeAccount.bind(this))
+        .filter((account): account is TikTokAccount => account !== undefined);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         await this.ensureDirectory();
@@ -70,11 +80,64 @@ export class TikTokAccountRepository {
     await mkdir(dirname(this.storagePath), { recursive: true });
   }
 
-  private isTikTokAccount(candidate: any): candidate is TikTokAccount {
-    return (
-      candidate &&
-      typeof candidate === 'object' &&
-      typeof candidate.openId === 'string'
-    );
+  private normalizeAccount(candidate: any): TikTokAccount | undefined {
+    if (!candidate || typeof candidate !== 'object') {
+      return undefined;
+    }
+
+    if (typeof candidate.userId !== 'string' || candidate.userId.length === 0) {
+      this.logger.warn(
+        'Skipping TikTok account entry without userId. Consider re-connecting the account.',
+      );
+      return undefined;
+    }
+
+    if (typeof candidate.openId !== 'string' || candidate.openId.length === 0) {
+      return undefined;
+    }
+
+    return {
+      userId: candidate.userId,
+      openId: candidate.openId,
+      displayName:
+        typeof candidate.displayName === 'string'
+          ? candidate.displayName
+          : null,
+      username:
+        typeof candidate.username === 'string' ? candidate.username : null,
+      avatarUrl:
+        typeof candidate.avatarUrl === 'string' ? candidate.avatarUrl : null,
+      accessToken:
+        typeof candidate.accessToken === 'string' ? candidate.accessToken : '',
+      refreshToken:
+        typeof candidate.refreshToken === 'string'
+          ? candidate.refreshToken
+          : null,
+      expiresAt:
+        typeof candidate.expiresAt === 'string'
+          ? candidate.expiresAt
+          : new Date().toISOString(),
+      refreshExpiresAt:
+        typeof candidate.refreshExpiresAt === 'string'
+          ? candidate.refreshExpiresAt
+          : null,
+      scope: Array.isArray(candidate.scope)
+        ? candidate.scope.filter((entry: unknown): entry is string =>
+            typeof entry === 'string',
+          )
+        : [],
+      timezoneOffsetMinutes:
+        typeof candidate.timezoneOffsetMinutes === 'number'
+          ? candidate.timezoneOffsetMinutes
+          : null,
+      connectedAt:
+        typeof candidate.connectedAt === 'string'
+          ? candidate.connectedAt
+          : new Date().toISOString(),
+      updatedAt:
+        typeof candidate.updatedAt === 'string'
+          ? candidate.updatedAt
+          : new Date().toISOString(),
+    };
   }
 }

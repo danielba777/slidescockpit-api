@@ -22,6 +22,7 @@ interface OAuthTokenResponse {
 interface TikTokUserInfo {
   openId: string | null;
   displayName: string | null;
+  username: string | null;
   avatarUrl: string | null;
 }
 
@@ -46,9 +47,9 @@ export class TikTokService {
     return { url };
   }
 
-  async connect(dto: ConnectTikTokDto): Promise<TikTokAccount> {
+  async connect(userId: string, dto: ConnectTikTokDto): Promise<TikTokAccount> {
     if (this.mockMode) {
-      const account = this.buildMockAccount(dto);
+      const account = this.buildMockAccount(dto, userId);
       await this.repository.upsertAccount(account);
       return account;
     }
@@ -67,6 +68,7 @@ export class TikTokService {
         return {
           openId: token.openId,
           displayName: null,
+          username: null,
           avatarUrl: null,
         };
       },
@@ -75,11 +77,13 @@ export class TikTokService {
     const now = new Date();
     const timezoneOffsetMinutes = this.parseTimezone(dto.timezone);
 
-    const openId = userInfo.openId ?? token.openId ?? this.generateFallbackOpenId(dto.code);
+    const openId = userInfo.openId ?? token.openId ?? this.generateFallbackOpenId(dto.code, userId);
 
     const account: TikTokAccount = {
+      userId,
       openId,
       displayName: userInfo.displayName,
+      username: userInfo.username ?? userInfo.displayName ?? openId,
       avatarUrl: userInfo.avatarUrl,
       accessToken: token.accessToken,
       refreshToken: token.refreshToken,
@@ -93,6 +97,10 @@ export class TikTokService {
 
     await this.repository.upsertAccount(account);
     return account;
+  }
+
+  async listAccounts(userId: string): Promise<TikTokAccount[]> {
+    return this.repository.listAccountsForUser(userId);
   }
 
   private async exchangeCodeForToken(code: string): Promise<OAuthTokenResponse> {
@@ -146,7 +154,7 @@ export class TikTokService {
 
   private async fetchUserInfo(accessToken: string): Promise<TikTokUserInfo> {
     const params = new URLSearchParams({
-      fields: 'open_id,display_name,avatar_url',
+      fields: 'open_id,display_name,avatar_url,username',
     });
 
     const response = await fetch(
@@ -181,6 +189,7 @@ export class TikTokService {
       openId: typeof user?.open_id === 'string' ? user.open_id : null,
       displayName:
         typeof user?.display_name === 'string' ? user.display_name : null,
+      username: typeof user?.username === 'string' ? user.username : null,
       avatarUrl:
         typeof user?.avatar_url === 'string' ? user.avatar_url : null,
     };
@@ -233,11 +242,14 @@ export class TikTokService {
     return new Date(base + duration).toISOString();
   }
 
-  private generateFallbackOpenId(code: string): string {
+  private generateFallbackOpenId(code: string, userId: string): string {
     this.logger.warn(
       'TikTok did not include an open_id in either the token or user info response. Falling back to hashed code.',
     );
-    return `fallback_${createHash('sha256').update(code).digest('hex').slice(0, 24)}`;
+    return `fallback_${createHash('sha256')
+      .update(`${userId}:${code}`)
+      .digest('hex')
+      .slice(0, 24)}`;
   }
 
   private requireEnv(name: string): string {
@@ -288,15 +300,17 @@ export class TikTokService {
     return undefined;
   }
 
-  private buildMockAccount(dto: ConnectTikTokDto): TikTokAccount {
+  private buildMockAccount(dto: ConnectTikTokDto, userId: string): TikTokAccount {
     const now = new Date();
     const accessToken = `mock_access_${randomBytes(8).toString('hex')}`;
     const refreshToken = `mock_refresh_${randomBytes(8).toString('hex')}`;
     const openId = `mock_${randomBytes(6).toString('hex')}`;
 
     return {
+      userId,
       openId,
       displayName: 'Mock TikTok Account',
+      username: `mock_${openId.slice(-4)}`,
       avatarUrl: null,
       accessToken,
       refreshToken,
