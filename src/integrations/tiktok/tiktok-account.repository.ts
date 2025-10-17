@@ -21,27 +21,50 @@ export class TikTokAccountRepository {
 
   async listAccounts(): Promise<TikTokAccount[]> {
     await this.ready;
-    return [...this.cache];
+    return this.cache.map((account) => ({ ...account }));
   }
 
   async listAccountsForUser(userId: string): Promise<TikTokAccount[]> {
     await this.ready;
-    return this.cache.filter((account) => account.userId === userId);
+    return this.cache
+      .filter((account) => account.userId === userId)
+      .map((account) => ({ ...account }));
+  }
+
+  async getAccount(userId: string, openId: string): Promise<TikTokAccount | undefined> {
+    await this.ready;
+    const normalized = this.normalizeOpenId(openId);
+    const found = this.cache.find(
+      (account) =>
+        account.userId === userId &&
+        this.normalizeOpenId(account.openId) === normalized,
+    );
+    return found ? { ...found } : undefined;
   }
 
   async upsertAccount(account: TikTokAccount): Promise<TikTokAccount> {
     await this.ready;
+    const normalizedOpenId = this.normalizeOpenId(account.openId);
+    const record: TikTokAccount = {
+      ...account,
+      openId: normalizedOpenId,
+      connectedAt: account.connectedAt ?? new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
     const index = this.cache.findIndex(
-      (item) => item.openId === account.openId && item.userId === account.userId,
+      (item) =>
+        item.userId === record.userId &&
+        this.normalizeOpenId(item.openId) === normalizedOpenId,
     );
     if (index >= 0) {
-      this.cache[index] = account;
+      this.cache[index] = record;
     } else {
-      this.cache.push(account);
+      this.cache.push(record);
     }
 
     await this.persist();
-    return account;
+    return record;
   }
 
   private async loadFromDisk(): Promise<void> {
@@ -96,9 +119,11 @@ export class TikTokAccountRepository {
       return undefined;
     }
 
+    const normalizedOpenId = this.normalizeOpenId(candidate.openId);
+
     return {
       userId: candidate.userId,
-      openId: candidate.openId,
+      openId: normalizedOpenId,
       displayName:
         typeof candidate.displayName === 'string'
           ? candidate.displayName
@@ -123,11 +148,7 @@ export class TikTokAccountRepository {
         typeof candidate.refreshExpiresAt === 'string'
           ? candidate.refreshExpiresAt
           : null,
-      scope: Array.isArray(candidate.scope)
-        ? candidate.scope.filter((entry: unknown): entry is string =>
-            typeof entry === 'string',
-          )
-        : [],
+      scope: this.parseScope(candidate.scope),
       timezoneOffsetMinutes:
         typeof candidate.timezoneOffsetMinutes === 'number'
           ? candidate.timezoneOffsetMinutes
@@ -141,5 +162,27 @@ export class TikTokAccountRepository {
           ? candidate.updatedAt
           : new Date().toISOString(),
     };
+  }
+
+  private normalizeOpenId(openId: string): string {
+    return openId.replace(/-/g, '').trim();
+  }
+
+  private parseScope(value: unknown): string[] {
+    if (Array.isArray(value)) {
+      return value
+        .map((entry) => (typeof entry === 'string' ? entry : String(entry)))
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+    }
+
+    if (typeof value === 'string') {
+      return value
+        .split(/[\s,]+/)
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+    }
+
+    return [];
   }
 }
