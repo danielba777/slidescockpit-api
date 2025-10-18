@@ -228,8 +228,13 @@ export class TikTokPostingProvider extends SocialAbstract {
     publishId: string,
     accessToken: string,
   ): Promise<{ url: string; id: string }> {
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
+    const maxAttempts = Number(process.env.TIKTOK_POST_STATUS_ATTEMPTS ?? 30);
+    const intervalMs = Number(process.env.TIKTOK_POST_STATUS_INTERVAL_MS ?? 10_000);
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      attempts += 1;
+
       const response = await this.fetch(
         'https://open.tiktokapis.com/v2/post/publish/status/fetch/',
         {
@@ -251,14 +256,14 @@ export class TikTokPostingProvider extends SocialAbstract {
           throw new RefreshToken(handled.value);
        }
        throw new BadBody(
-         'tiktok-post-status-failed',
-         serialized,
-         Buffer.from(serialized),
-          handled?.value ?? this.extractErrorMessage(payload) ?? 'Failed to retrieve TikTok publish status',
-       );
-     }
+        'tiktok-post-status-failed',
+        serialized,
+        Buffer.from(serialized),
+        handled?.value ?? this.extractErrorMessage(payload) ?? 'Failed to retrieve TikTok publish status',
+      );
+    }
 
-      const { status, publicly_available_post_id, publicaly_available_post_id } = payload.data;
+    const { status, publicly_available_post_id, publicaly_available_post_id } = payload.data;
 
       if (status === 'PUBLISH_COMPLETE') {
         const postId = publicly_available_post_id?.[0] ?? publicaly_available_post_id?.[0] ?? publishId;
@@ -283,11 +288,18 @@ export class TikTokPostingProvider extends SocialAbstract {
          serialized,
          Buffer.from(serialized),
           handled?.value ?? this.extractErrorMessage(payload) ?? 'TikTok marked the publish as failed',
-       );
-     }
-
-      await this.sleep(10_000);
+      );
     }
+
+    await this.sleep(intervalMs);
+    }
+
+    throw new BadBody(
+      'tiktok-post-status-timeout',
+      JSON.stringify({ publishId, attempts: maxAttempts }),
+      undefined,
+      'TikTok did not finish processing the post in time',
+    );
   }
 
   private handleErrors(body: string):
