@@ -98,16 +98,16 @@ export class TikTokPostingProvider extends SocialAbstract {
     const primaryMedia = media[0];
     const isPhoto = primaryMedia.type === 'photo';
     const settings: TikTokPostingSettingsDto = {
-      contentPostingMethod: 'DIRECT_POST',
-      privacyLevel: 'PUBLIC_TO_EVERYONE',
-      duet: true,
-      comment: true,
-      stitch: true,
-      videoMadeWithAi: false,
-      brandContentToggle: false,
-      brandOrganicToggle: false,
-      autoAddMusic: false,
-      ...(payload.settings ?? {}),
+      contentPostingMethod: payload.settings?.contentPostingMethod ?? 'UPLOAD',
+      privacyLevel: payload.settings?.privacyLevel ?? 'SELF_ONLY',
+      duet: payload.settings?.duet ?? false,
+      comment: payload.settings?.comment ?? false,
+      stitch: payload.settings?.stitch ?? false,
+      videoMadeWithAi: payload.settings?.videoMadeWithAi ?? false,
+      brandContentToggle: payload.settings?.brandContentToggle ?? false,
+      brandOrganicToggle: payload.settings?.brandOrganicToggle ?? false,
+      autoAddMusic: payload.settings?.autoAddMusic ?? true,
+      title: payload.settings?.title,
     };
 
     const endpointPath = this.postingMethod(settings.contentPostingMethod ?? 'DIRECT_POST', isPhoto);
@@ -167,33 +167,28 @@ export class TikTokPostingProvider extends SocialAbstract {
     const primary = media[0];
     const body: Record<string, unknown> = {};
 
-    if (contentMethod === 'DIRECT_POST') {
-      const titleSource = isPhoto ? settings.title ?? caption : caption;
-      const postInfo: Record<string, unknown> = {
-        privacy_level: settings.privacyLevel ?? 'PUBLIC_TO_EVERYONE',
-        disable_duet: !(settings.duet ?? true),
-        disable_comment: !(settings.comment ?? true),
-        disable_stitch: !(settings.stitch ?? true),
-        is_aigc: settings.videoMadeWithAi ?? false,
-        brand_content_toggle: settings.brandContentToggle ?? false,
-        brand_organic_toggle: settings.brandOrganicToggle ?? false,
-      };
+    const titleSource = isPhoto ? settings.title ?? caption : caption;
+    const postInfo: Record<string, unknown> = {
+      privacy_level: settings.privacyLevel ?? 'SELF_ONLY',
+      disable_duet: !(settings.duet ?? false),
+      disable_comment: !(settings.comment ?? false),
+      disable_stitch: !(settings.stitch ?? false),
+      is_aigc: settings.videoMadeWithAi ?? false,
+      brand_content_toggle: settings.brandContentToggle ?? false,
+      brand_organic_toggle: settings.brandOrganicToggle ?? false,
+    };
 
-      if (titleSource && titleSource.length > 0) {
-        postInfo.title = titleSource;
-      }
-
-      if (isPhoto) {
-        postInfo.description = caption ?? '';
-        if (settings.autoAddMusic) {
-          postInfo.auto_add_music = true;
-        }
-      } else {
-        postInfo.description = caption ?? '';
-      }
-
-      body.post_info = postInfo;
+    if (titleSource && titleSource.length > 0) {
+      postInfo.title = titleSource;
     }
+
+    postInfo.description = caption ?? '';
+
+    if (isPhoto && settings.autoAddMusic) {
+      postInfo.auto_add_music = true;
+    }
+
+    body.post_info = postInfo;
 
     if (isPhoto) {
       body.source_info = {
@@ -267,7 +262,7 @@ export class TikTokPostingProvider extends SocialAbstract {
 
       if (status === 'PUBLISH_COMPLETE') {
         const postId = publicly_available_post_id?.[0] ?? publicaly_available_post_id?.[0] ?? publishId;
-        const url = publicly_available_post_id?.[0]
+      const url = publicly_available_post_id?.[0]
           ? `https://www.tiktok.com/@${profileId}/video/${publicly_available_post_id[0]}`
           : `https://www.tiktok.com/@${profileId}`;
 
