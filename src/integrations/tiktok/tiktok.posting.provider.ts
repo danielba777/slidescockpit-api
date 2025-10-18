@@ -131,11 +131,15 @@ export class TikTokPostingProvider extends SocialAbstract {
       if (handled?.type === 'refresh-token') {
         throw new RefreshToken(handled.value);
       }
+      const fallbackMessage =
+        handled?.value ??
+        this.extractErrorMessage(payloadJson) ??
+        'Failed to start TikTok publish flow';
       throw new BadBody(
         'tiktok-post-init-failed',
         serialized,
         Buffer.from(serialized),
-        handled?.value ?? 'Failed to start TikTok publish flow',
+        fallbackMessage,
       );
     }
 
@@ -250,14 +254,14 @@ export class TikTokPostingProvider extends SocialAbstract {
         const handled = this.handleErrors(serialized);
         if (handled?.type === 'refresh-token') {
           throw new RefreshToken(handled.value);
-        }
-        throw new BadBody(
-          'tiktok-post-status-failed',
-          serialized,
-          Buffer.from(serialized),
-          handled?.value ?? 'Failed to retrieve TikTok publish status',
-        );
-      }
+       }
+       throw new BadBody(
+         'tiktok-post-status-failed',
+         serialized,
+         Buffer.from(serialized),
+          handled?.value ?? this.extractErrorMessage(payload) ?? 'Failed to retrieve TikTok publish status',
+       );
+     }
 
       const { status, publicly_available_post_id, publicaly_available_post_id } = payload.data;
 
@@ -278,14 +282,14 @@ export class TikTokPostingProvider extends SocialAbstract {
         const handled = this.handleErrors(serialized);
         if (handled?.type === 'refresh-token') {
           throw new RefreshToken(handled.value);
-        }
-        throw new BadBody(
-          'tiktok-post-failed',
-          serialized,
-          Buffer.from(serialized),
-          handled?.value ?? 'TikTok marked the publish as failed',
-        );
-      }
+       }
+       throw new BadBody(
+         'tiktok-post-failed',
+         serialized,
+         Buffer.from(serialized),
+          handled?.value ?? this.extractErrorMessage(payload) ?? 'TikTok marked the publish as failed',
+       );
+     }
 
       await this.sleep(10_000);
     }
@@ -477,5 +481,47 @@ export class TikTokPostingProvider extends SocialAbstract {
       );
     }
     return value;
+  }
+
+  private extractErrorMessage(payload: any): string | undefined {
+    if (!payload || typeof payload !== 'object') {
+      return undefined;
+    }
+
+    if (typeof payload.message === 'string' && payload.message.trim().length > 0) {
+      return payload.message;
+    }
+
+    if (
+      typeof payload.error === 'object' &&
+      payload.error !== null &&
+      typeof payload.error.message === 'string'
+    ) {
+      return payload.error.message;
+    }
+
+    if (
+      Array.isArray(payload.errors) &&
+      payload.errors.length > 0 &&
+      typeof payload.errors[0]?.message === 'string'
+    ) {
+      return payload.errors[0].message;
+    }
+
+    if (
+      typeof payload.data === 'object' &&
+      payload.data !== null &&
+      typeof (payload.data as any).error === 'object' &&
+      (payload.data as any).error !== null &&
+      typeof (payload.data as any).error.message === 'string'
+    ) {
+      return (payload.data as any).error.message;
+    }
+
+    if (typeof payload.description === 'string' && payload.description.trim().length > 0) {
+      return payload.description;
+    }
+
+    return undefined;
   }
 }
