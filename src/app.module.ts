@@ -5,10 +5,11 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { FilesModule } from './files/files.module';
 import { TikTokModule } from './integrations/tiktok/tiktok.module';
+import { PrismaModule } from './prisma/prisma.module';
 import { QueueModule } from './queue/queue.module';
 
 @Module({
-  imports: [AuthModule, TikTokModule, FilesModule, QueueModule],
+  imports: [AuthModule, TikTokModule, FilesModule, PrismaModule, QueueModule],
   controllers: [AppController],
   providers: [AppService],
 })

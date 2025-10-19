@@ -1,188 +1,96 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { Injectable } from '@nestjs/common';
+import { TikTokAccount as TikTokAccountEntity } from '@prisma/client';
 
+import { PrismaService } from '../../prisma/prisma.service';
 import { TikTokAccount } from './tiktok.types';
 
 @Injectable()
 export class TikTokAccountRepository {
-  private readonly logger = new Logger(TikTokAccountRepository.name);
-  private readonly storagePath = join(
-    process.cwd(),
-    'storage',
-    'tiktok-accounts.json',
-  );
-  private readonly ready: Promise<void>;
-  private cache: TikTokAccount[] = [];
-
-  constructor() {
-    this.ready = this.loadFromDisk();
-  }
+  constructor(private readonly prisma: PrismaService) {}
 
   async listAccounts(): Promise<TikTokAccount[]> {
-    await this.ready;
-    return this.cache.map((account) => ({ ...account }));
+    const records = await this.prisma.tikTokAccount.findMany();
+    return records.map((record) => this.toDomain(record));
   }
 
   async listAccountsForUser(userId: string): Promise<TikTokAccount[]> {
-    await this.ready;
-    return this.cache
-      .filter((account) => account.userId === userId)
-      .map((account) => ({ ...account }));
+    const records = await this.prisma.tikTokAccount.findMany({
+      where: { userId },
+    });
+    return records.map((record) => this.toDomain(record));
   }
 
   async getAccount(userId: string, openId: string): Promise<TikTokAccount | undefined> {
-    await this.ready;
-    const normalized = this.normalizeOpenId(openId);
-    const found = this.cache.find(
-      (account) =>
-        account.userId === userId &&
-        this.normalizeOpenId(account.openId) === normalized,
-    );
-    return found ? { ...found } : undefined;
+    const normalizedOpenId = this.normalizeOpenId(openId);
+    const record = await this.prisma.tikTokAccount.findUnique({
+      where: {
+        userId_openId: {
+          userId,
+          openId: normalizedOpenId,
+        },
+      },
+    });
+
+    return record ? this.toDomain(record) : undefined;
   }
 
   async upsertAccount(account: TikTokAccount): Promise<TikTokAccount> {
-    await this.ready;
     const normalizedOpenId = this.normalizeOpenId(account.openId);
-    const record: TikTokAccount = {
-      ...account,
-      openId: normalizedOpenId,
-      connectedAt: account.connectedAt ?? new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
 
-    const index = this.cache.findIndex(
-      (item) =>
-        item.userId === record.userId &&
-        this.normalizeOpenId(item.openId) === normalizedOpenId,
-    );
-    if (index >= 0) {
-      this.cache[index] = record;
-    } else {
-      this.cache.push(record);
-    }
+    const result = await this.prisma.tikTokAccount.upsert({
+      where: {
+        userId_openId: {
+          userId: account.userId,
+          openId: normalizedOpenId,
+        },
+      },
+      update: this.toPersistence(account, normalizedOpenId),
+      create: this.toPersistence(account, normalizedOpenId),
+    });
 
-    await this.persist();
-    return record;
+    return this.toDomain(result);
   }
 
-  private async loadFromDisk(): Promise<void> {
-    try {
-      const content = await readFile(this.storagePath, 'utf8');
-      const parsed: unknown = JSON.parse(content);
-      if (!Array.isArray(parsed)) {
-        this.cache = [];
-        return;
-      }
-
-      this.cache = parsed
-        .map(this.normalizeAccount.bind(this))
-        .filter((account): account is TikTokAccount => account !== undefined);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        await this.ensureDirectory();
-        this.cache = [];
-        await this.persist();
-        return;
-      }
-      this.logger.warn(
-        `Failed to load TikTok accounts store (${String(error)}) – continuing with empty store`,
-      );
-      this.cache = [];
-    }
-  }
-
-  private async persist(): Promise<void> {
-    await this.ensureDirectory();
-    const payload = JSON.stringify(this.cache, null, 2);
-    await writeFile(this.storagePath, payload, 'utf8');
-  }
-
-  private async ensureDirectory(): Promise<void> {
-    await mkdir(dirname(this.storagePath), { recursive: true });
-  }
-
-  private normalizeAccount(candidate: any): TikTokAccount | undefined {
-    if (!candidate || typeof candidate !== 'object') {
-      return undefined;
-    }
-
-    if (typeof candidate.userId !== 'string' || candidate.userId.length === 0) {
-      this.logger.warn(
-        'Skipping TikTok account entry without userId. Consider re-connecting the account.',
-      );
-      return undefined;
-    }
-
-    if (typeof candidate.openId !== 'string' || candidate.openId.length === 0) {
-      return undefined;
-    }
-
-    const normalizedOpenId = this.normalizeOpenId(candidate.openId);
-
+  private toDomain(record: TikTokAccountEntity): TikTokAccount {
     return {
-      userId: candidate.userId,
+      userId: record.userId,
+      openId: record.openId,
+      displayName: record.displayName ?? null,
+      username: record.username ?? null,
+      unionId: record.unionId ?? null,
+      avatarUrl: record.avatarUrl ?? null,
+      accessToken: record.accessToken,
+      refreshToken: record.refreshToken ?? null,
+      expiresAt: record.expiresAt.toISOString(),
+      refreshExpiresAt: record.refreshExpiresAt?.toISOString() ?? null,
+      scope: record.scope ?? [],
+      timezoneOffsetMinutes: record.timezoneOffsetMinutes ?? null,
+      connectedAt: record.connectedAt.toISOString(),
+      updatedAt: record.updatedAt.toISOString(),
+    };
+  }
+
+  private toPersistence(account: TikTokAccount, normalizedOpenId: string) {
+    return {
+      userId: account.userId,
       openId: normalizedOpenId,
-      displayName:
-        typeof candidate.displayName === 'string'
-          ? candidate.displayName
-          : null,
-      username:
-        typeof candidate.username === 'string' ? candidate.username : null,
-      unionId:
-        typeof candidate.unionId === 'string' ? candidate.unionId : null,
-      avatarUrl:
-        typeof candidate.avatarUrl === 'string' ? candidate.avatarUrl : null,
-      accessToken:
-        typeof candidate.accessToken === 'string' ? candidate.accessToken : '',
-      refreshToken:
-        typeof candidate.refreshToken === 'string'
-          ? candidate.refreshToken
-          : null,
-      expiresAt:
-        typeof candidate.expiresAt === 'string'
-          ? candidate.expiresAt
-          : new Date().toISOString(),
-      refreshExpiresAt:
-        typeof candidate.refreshExpiresAt === 'string'
-          ? candidate.refreshExpiresAt
-          : null,
-      scope: this.parseScope(candidate.scope),
-      timezoneOffsetMinutes:
-        typeof candidate.timezoneOffsetMinutes === 'number'
-          ? candidate.timezoneOffsetMinutes
-          : null,
-      connectedAt:
-        typeof candidate.connectedAt === 'string'
-          ? candidate.connectedAt
-          : new Date().toISOString(),
-      updatedAt:
-        typeof candidate.updatedAt === 'string'
-          ? candidate.updatedAt
-          : new Date().toISOString(),
+      displayName: account.displayName,
+      username: account.username,
+      unionId: account.unionId,
+      avatarUrl: account.avatarUrl,
+      accessToken: account.accessToken,
+      refreshToken: account.refreshToken,
+      expiresAt: new Date(account.expiresAt),
+      refreshExpiresAt: account.refreshExpiresAt ? new Date(account.refreshExpiresAt) : null,
+      scope: account.scope ?? [],
+      timezoneOffsetMinutes: account.timezoneOffsetMinutes,
+      connectedAt: new Date(account.connectedAt ?? new Date().toISOString()),
+      updatedAt: new Date(),
     };
   }
 
   private normalizeOpenId(openId: string): string {
     return openId.replace(/-/g, '').trim();
   }
-
-  private parseScope(value: unknown): string[] {
-    if (Array.isArray(value)) {
-      return value
-        .map((entry) => (typeof entry === 'string' ? entry : String(entry)))
-        .map((entry) => entry.trim())
-        .filter((entry) => entry.length > 0);
-    }
-
-    if (typeof value === 'string') {
-      return value
-        .split(/[\s,]+/)
-        .map((entry) => entry.trim())
-        .filter((entry) => entry.length > 0);
-    }
-
-    return [];
-  }
 }
+
