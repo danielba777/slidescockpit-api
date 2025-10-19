@@ -47,7 +47,9 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       throw new Error('Queue not initialised');
     }
 
-    const jobId = `${process.env.POST_SCHEDULE_GROUP ?? 'slidescockpit'}:${payload.idempotencyKey}`;
+    const group = this.sanitizeForJobId(process.env.POST_SCHEDULE_GROUP ?? 'slidescockpit');
+    const baseKey = this.sanitizeForJobId(String(payload.idempotencyKey ?? Date.now()));
+    const jobId = `${group}-${baseKey}`;
     return this.queue.add(name, payload, {
       jobId,
       delay: Math.max(0, runAt.getTime() - Date.now()),
@@ -91,5 +93,10 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       keepAlive: 10_000,
     };
     return new IORedis(redisUrl, baseOptions);
+  }
+
+  private sanitizeForJobId(value: string): string {
+    const sanitized = value.replace(/[^a-zA-Z0-9_-]/g, '-');
+    return sanitized.length > 0 ? sanitized : `job-${Date.now()}`;
   }
 }
