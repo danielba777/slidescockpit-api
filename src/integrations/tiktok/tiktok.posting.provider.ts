@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 
 import { BadBody, RefreshToken, SocialAbstract } from '../social/social.abstract';
 import { TikTokAccount } from './tiktok.types';
@@ -30,6 +30,7 @@ interface RefreshTokenResult {
 
 @Injectable()
 export class TikTokPostingProvider extends SocialAbstract {
+  protected readonly logger = new Logger(TikTokPostingProvider.name);
   private readonly clientKey = this.requireEnv('TIKTOK_CLIENT_KEY');
   private readonly clientSecret = this.requireEnv('TIKTOK_CLIENT_SECRET');
   private readonly scopes = [
@@ -191,7 +192,17 @@ export class TikTokPostingProvider extends SocialAbstract {
     );
 
     const payload = await response.json().catch(() => undefined);
+    this.logger.debug(
+      `TikTok fetchPublishStatus response (publishId ${publishId}, http ${response.status}): ${JSON.stringify(
+        payload ?? {},
+      )}`,
+    );
     if (!response.ok || !payload?.data) {
+      this.logger.warn(
+        `TikTok fetchPublishStatus returned unexpected payload (publishId ${publishId}, http ${response.status}): ${JSON.stringify(
+          payload ?? {},
+        )}`,
+      );
       const serialized = JSON.stringify(payload ?? {});
       const handled = this.handleErrors(serialized);
       if (handled?.type === 'refresh-token') {
@@ -319,7 +330,17 @@ export class TikTokPostingProvider extends SocialAbstract {
       );
 
       const payload = await response.json().catch(() => undefined);
+      this.logger.debug(
+        `TikTok uploadedVideoSuccess attempt ${attempts}/${maxAttempts} (publishId ${publishId}, http ${response.status}): ${JSON.stringify(
+          payload ?? {},
+        )}`,
+      );
       if (!response.ok || !payload?.data) {
+        this.logger.warn(
+          `TikTok uploadedVideoSuccess received unexpected payload (publishId ${publishId}, http ${response.status}): ${JSON.stringify(
+            payload ?? {},
+          )}`,
+        );
         const serialized = JSON.stringify(payload ?? {});
         const handled = this.handleErrors(serialized);
         if (handled?.type === 'refresh-token') {
