@@ -10,6 +10,12 @@ interface TikTokPostResult {
   status: 'success';
 }
 
+interface TikTokPostStatusSingle {
+  status: 'processing' | 'success' | 'failed';
+  id?: string;
+  url?: string;
+}
+
 interface RefreshTokenResult {
   accessToken: string;
   refreshToken: string | null;
@@ -88,6 +94,26 @@ export class TikTokPostingProvider extends SocialAbstract {
   }
 
   async post(account: TikTokAccount, payload: TikTokPostRequestDto): Promise<TikTokPostResult> {
+    const { publishId } = await this.initPost(account, payload);
+
+    const { url, id } = await this.uploadedVideoSuccess(
+      account.username ?? account.openId,
+      publishId,
+      account.accessToken,
+    );
+
+    return {
+      postId: String(id),
+      releaseUrl: url,
+      status: 'success',
+    };
+  }
+
+  async initPostOnly(account: TikTokAccount, payload: TikTokPostRequestDto): Promise<{ publishId: string }> {
+    return this.initPost(account, payload);
+  }
+
+  private async initPost(account: TikTokAccount, payload: TikTokPostRequestDto): Promise<{ publishId: string }> {
     this.checkScopes(this.scopes, account.scope ?? []);
 
     const media = payload.media ?? [];
@@ -143,18 +169,62 @@ export class TikTokPostingProvider extends SocialAbstract {
       );
     }
 
-    const publishId: string = payloadJson.data.publish_id;
-    const { url, id } = await this.uploadedVideoSuccess(
-      account.username ?? account.openId,
-      publishId,
-      account.accessToken,
+    return { publishId: String(payloadJson.data.publish_id) };
+  }
+
+  async fetchPublishStatus(
+    profileId: string,
+    publishId: string,
+    accessToken: string,
+  ): Promise<TikTokPostStatusSingle> {
+    const response = await this.fetch(
+      'https://open.tiktokapis.com/v2/post/publish/status/fetch/',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ publish_id: publishId }),
+      },
+      'tiktok-post-status-once',
     );
 
-    return {
-      postId: String(id),
-      releaseUrl: url,
-      status: 'success',
-    };
+    const payload = await response.json().catch(() => undefined);
+    if (!response.ok || !payload?.data) {
+      const serialized = JSON.stringify(payload ?? {});
+      const handled = this.handleErrors(serialized);
+      if (handled?.type === 'refresh-token') {
+        throw new RefreshToken(handled.value);
+      }
+      throw new BadBody(
+        'tiktok-post-status-failed',
+        serialized,
+        Buffer.from(serialized),
+        handled?.value ?? this.extractErrorMessage(payload) ?? 'Failed to retrieve TikTok publish status',
+      );
+    }
+
+    const { status, publicly_available_post_id, publicaly_available_post_id } = payload.data;
+
+    if (status === 'PUBLISH_COMPLETE') {
+      const postId = publicly_available_post_id?.[0] ?? publicaly_available_post_id?.[0] ?? publishId;
+      const url = publicly_available_post_id?.[0]
+        ? `https://www.tiktok.com/@${profileId}/video/${publicly_available_post_id[0]}`
+        : `https://www.tiktok.com/@${profileId}`;
+      return { status: 'success', id: String(postId), url };
+    }
+
+    if (status === 'FAILED') {
+      const serialized = JSON.stringify(payload);
+      const handled = this.handleErrors(serialized);
+      if (handled?.type === 'refresh-token') {
+        throw new RefreshToken(handled.value);
+      }
+      return { status: 'failed' };
+    }
+
+    return { status: 'processing' };
   }
 
   private buildPostBody(
@@ -254,20 +324,20 @@ export class TikTokPostingProvider extends SocialAbstract {
         const handled = this.handleErrors(serialized);
         if (handled?.type === 'refresh-token') {
           throw new RefreshToken(handled.value);
-       }
-       throw new BadBody(
-        'tiktok-post-status-failed',
-        serialized,
-        Buffer.from(serialized),
-        handled?.value ?? this.extractErrorMessage(payload) ?? 'Failed to retrieve TikTok publish status',
-      );
-    }
+        }
+        throw new BadBody(
+          'tiktok-post-status-failed',
+          serialized,
+          Buffer.from(serialized),
+          handled?.value ?? this.extractErrorMessage(payload) ?? 'Failed to retrieve TikTok publish status',
+        );
+      }
 
-    const { status, publicly_available_post_id, publicaly_available_post_id } = payload.data;
+      const { status, publicly_available_post_id, publicaly_available_post_id } = payload.data;
 
       if (status === 'PUBLISH_COMPLETE') {
         const postId = publicly_available_post_id?.[0] ?? publicaly_available_post_id?.[0] ?? publishId;
-      const url = publicly_available_post_id?.[0]
+        const url = publicly_available_post_id?.[0]
           ? `https://www.tiktok.com/@${profileId}/video/${publicly_available_post_id[0]}`
           : `https://www.tiktok.com/@${profileId}`;
 
@@ -282,16 +352,16 @@ export class TikTokPostingProvider extends SocialAbstract {
         const handled = this.handleErrors(serialized);
         if (handled?.type === 'refresh-token') {
           throw new RefreshToken(handled.value);
-       }
-       throw new BadBody(
-         'tiktok-post-failed',
-         serialized,
-         Buffer.from(serialized),
+        }
+        throw new BadBody(
+          'tiktok-post-failed',
+          serialized,
+          Buffer.from(serialized),
           handled?.value ?? this.extractErrorMessage(payload) ?? 'TikTok marked the publish as failed',
-      );
-    }
+        );
+      }
 
-    await this.sleep(intervalMs);
+      await this.sleep(intervalMs);
     }
 
     throw new BadBody(

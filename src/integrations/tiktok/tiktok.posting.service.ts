@@ -63,6 +63,88 @@ export class TikTokPostingService {
     }
   }
 
+  async postAsync(
+    userId: string,
+    openId: string,
+    payload: TikTokPostRequestDto,
+  ): Promise<{ publishId: string }> {
+    const account = await this.repository.getAccount(userId, openId);
+    if (!account) {
+      throw new BadRequestException('TikTok account not found');
+    }
+
+    const readyAccount = await this.ensureFreshToken(account);
+
+    try {
+      const { publishId } = await this.provider.initPostOnly(readyAccount, payload);
+      await this.repository.upsertAccount({
+        ...readyAccount,
+        updatedAt: new Date().toISOString(),
+      });
+      return { publishId };
+    } catch (error) {
+      if (error instanceof RefreshToken) {
+        throw new BadRequestException(error.message);
+      }
+      if (error instanceof NotEnoughScopes) {
+        throw new BadRequestException(
+          `Missing TikTok permissions: ${error.missingScopes.join(', ')}`,
+        );
+      }
+      if (error instanceof BadBody) {
+        this.logger.warn(
+          `TikTok post init failed (${error.code}): ${error.hint ?? error.message}`,
+        );
+        throw new BadRequestException(error.hint ?? error.message);
+      }
+      throw error;
+    }
+  }
+
+  async fetchStatus(
+    userId: string,
+    openId: string,
+    publishId: string,
+  ): Promise<{ status: 'processing' | 'failed' | 'success'; postId?: string; releaseUrl?: string }> {
+    const account = await this.repository.getAccount(userId, openId);
+    if (!account) {
+      throw new BadRequestException('TikTok account not found');
+    }
+
+    const readyAccount = await this.ensureFreshToken(account);
+
+    try {
+      const result = await this.provider.fetchPublishStatus(
+        readyAccount.username ?? readyAccount.openId,
+        publishId,
+        readyAccount.accessToken,
+      );
+
+      if (result.status === 'success') {
+        return {
+          status: 'success',
+          postId: result.id,
+          releaseUrl: result.url,
+        };
+      }
+      if (result.status === 'processing') {
+        return { status: 'processing' };
+      }
+      return { status: 'failed' };
+    } catch (error) {
+      if (error instanceof RefreshToken) {
+        throw new BadRequestException(error.message);
+      }
+      if (error instanceof BadBody) {
+        this.logger.warn(
+          `TikTok status check failed (${error.code}): ${error.hint ?? error.message}`,
+        );
+        throw new BadRequestException(error.hint ?? error.message);
+      }
+      throw error;
+    }
+  }
+
   private async ensureFreshToken(account: TikTokAccount): Promise<TikTokAccount> {
     const expiresAt = Date.parse(account.expiresAt);
     const needsRefresh =

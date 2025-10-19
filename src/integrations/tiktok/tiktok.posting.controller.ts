@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Headers, Param, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Headers, Param, Post, Query } from '@nestjs/common';
 
 import { TikTokPostRequestDto } from './dto/post-tiktok.dto';
 import { TikTokPostingService } from './tiktok.posting.service';
@@ -12,15 +12,26 @@ export class TikTokPostingController {
     @Headers('x-user-id') userId: string,
     @Param('openId') openId: string,
     @Body() body: TikTokPostRequestDto,
+    @Query('async') asyncFlag?: string,
   ) {
     const resolvedUserId = this.ensureUserId(userId);
+    if (typeof asyncFlag === 'string' && /^(1|true)$/i.test(asyncFlag.trim())) {
+      const init = await this.postingService.postAsync(resolvedUserId, openId, body);
+      return { accepted: true, publishId: init.publishId, status: 'processing' as const };
+    }
+
     const result = await this.postingService.post(resolvedUserId, openId, body);
-    return {
-      success: true,
-      postId: result.postId,
-      releaseUrl: result.releaseUrl,
-      status: result.status,
-    };
+    return { success: true, postId: result.postId, releaseUrl: result.releaseUrl, status: result.status };
+  }
+
+  @Get(':openId/post/status/:publishId')
+  async getPostStatus(
+    @Headers('x-user-id') userId: string,
+    @Param('openId') openId: string,
+    @Param('publishId') publishId: string,
+  ) {
+    const resolvedUserId = this.ensureUserId(userId);
+    return this.postingService.fetchStatus(resolvedUserId, openId, publishId);
   }
 
   private ensureUserId(value: string | undefined): string {
