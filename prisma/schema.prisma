@@ -1,0 +1,81 @@
+datasource db { 
+  provider = "postgresql"
+  url = env("DATABASE_URL") 
+
+}
+generator client { 
+  provider = "prisma-client-js" 
+}
+
+model User {
+  id        String   @id
+  email     String?
+  provider  String?
+  createdAt DateTime @default(now())
+  accounts  TikTokAccount[]
+  posts     ScheduledPost[]
+}
+
+model TikTokAccount {
+  id                   String   @id @default(uuid())
+  userId               String
+  openId               String
+  displayName          String?
+  username             String?
+  avatarUrl            String?
+  accessToken          String
+  refreshToken         String?
+  expiresAt            DateTime
+  refreshExpiresAt     DateTime?
+  scope                Json
+  timezoneOffsetMinutes Int?
+  connectedAt          DateTime
+  updatedAt            DateTime
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, openId])
+}
+
+enum PostStatus {
+  QUEUE
+  SCHEDULED
+  RUNNING
+  PUBLISHED
+  INBOX
+  FAILED
+  CANCELLED
+}
+
+model ScheduledPost {
+  id             String        @id @default(uuid())
+  userId         String
+  platform       String
+  targetOpenId   String
+  payload        Json
+  status         PostStatus    @default(SCHEDULED)
+  runAt          DateTime
+  jobId          String?
+  publishId      String?
+  resultUrl      String?
+  attempts       Int           @default(0)
+  lastError      String?
+  idempotencyKey String        @unique
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  user   User        @relation(fields: [userId], references: [id])
+  events PostEvent[] @relation("ScheduledPostEvents")
+}
+
+model PostEvent {
+  id              String        @id @default(uuid())
+  scheduledPostId String
+  type            String
+  data            Json?
+  occurredAt      DateTime      @default(now())
+
+  post ScheduledPost @relation("ScheduledPostEvents", fields: [scheduledPostId], references: [id])
+
+  @@index([scheduledPostId])
+}
