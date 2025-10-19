@@ -12,8 +12,8 @@ import { TikTokPostingProvider } from './tiktok.posting.provider';
 
 interface TikTokPostOutcome {
   postId: string;
-  releaseUrl: string;
-  status: 'success';
+  releaseUrl?: string;
+  status: 'success' | 'inbox';
 }
 
 @Injectable()
@@ -105,7 +105,7 @@ export class TikTokPostingService {
     userId: string,
     openId: string,
     publishId: string,
-  ): Promise<{ status: 'processing' | 'failed' | 'success'; postId?: string; releaseUrl?: string }> {
+  ): Promise<{ status: 'processing' | 'failed' | 'success' | 'inbox'; postId?: string; releaseUrl?: string }> {
     const account = await this.repository.getAccount(userId, openId);
     if (!account) {
       throw new BadRequestException('TikTok account not found');
@@ -126,6 +126,9 @@ export class TikTokPostingService {
           postId: result.id,
           releaseUrl: result.url,
         };
+      }
+      if (result.status === 'inbox') {
+        return { status: 'inbox', postId: result.id };
       }
       if (result.status === 'processing') {
         return { status: 'processing' };
