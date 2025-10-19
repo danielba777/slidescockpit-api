@@ -7,10 +7,18 @@ import { TikTokPostingController } from './tiktok.posting.controller';
 import { TikTokPostingProvider } from './tiktok.posting.provider';
 import { TikTokPostingService } from './tiktok.posting.service';
 import { TikTokService } from './tiktok.service';
+import { TikTokScheduler } from './tiktok.scheduler';
+import { TikTokScheduleController } from './tiktok.schedule.controller';
 
 @Module({
   imports: [SessionModule],
-  controllers: [TikTokController, TikTokPostingController],
-  providers: [TikTokService, TikTokPostingService, TikTokPostingProvider, TikTokAccountRepository],
+  controllers: [TikTokController, TikTokPostingController, TikTokScheduleController],
+  providers: [
+    TikTokService,
+    TikTokPostingService,
+    TikTokPostingProvider,
+    TikTokAccountRepository,
+    TikTokScheduler,
+  ],
 })
 export class TikTokModule {}

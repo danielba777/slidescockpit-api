@@ -42,7 +42,7 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
-      "prettier/prettier": ["error", { endOfLine: "auto" }],
+      'prettier/prettier': ['error', { endOfLine: 'auto' }],
     },
   },
 );
@@ -59,7 +59,6 @@ export default tseslint.config(
     "deleteOutDir": true
   }
 }
-
 ```
 
 # package.json
@@ -95,9 +94,11 @@ export default tseslint.config(
     "@nestjs/common": "^11.0.17",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "bullmq": "^5.61.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "dotenv": "^17.2.3",
+    "ioredis": "^5.8.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },
@@ -129,30 +130,20 @@ export default tseslint.config(
     "typescript-eslint": "^8.20.0"
   },
   "jest": {
-    "moduleFileExtensions": [
-      "js",
-      "json",
-      "ts"
-    ],
+    "moduleFileExtensions": ["js", "json", "ts"],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
-    "collectCoverageFrom": [
-      "**/*.(t|j)s"
-    ],
+    "collectCoverageFrom": ["**/*.(t|j)s"],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
   },
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "@nestjs/core",
-      "@swc/core"
-    ]
+    "onlyBuiltDependencies": ["@nestjs/core", "@swc/core"]
   }
 }
-
 ```
 
 # README.md
@@ -194,26 +185,34 @@ $ npm install
 ## Compile and run the project
 
 \`\`\`bash
+
 # development
+
 $ npm run start
 
 # watch mode
+
 $ npm run start:dev
 
 # production mode
+
 $ npm run start:prod
 \`\`\`
 
 ## Run tests
 
 \`\`\`bash
+
 # unit tests
+
 $ npm run test
 
 # e2e tests
+
 $ npm run test:e2e
 
 # test coverage
+
 $ npm run test:cov
 \`\`\`
 
@@ -256,7 +255,6 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
-
 ```
 
 # src/app.controller.spec.ts
@@ -283,7 +281,6 @@ describe('AppController', () => {
     });
   });
 });
-
 ```
 
 # src/app.controller.ts
@@ -301,7 +298,6 @@ export class AppController {
     return this.appService.getHello();
   }
 }
-
 ```
 
 # src/app.module.ts
@@ -312,16 +308,16 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
-import { TikTokModule } from './integrations/tiktok/tiktok.module';
 import { FilesModule } from './files/files.module';
+import { TikTokModule } from './integrations/tiktok/tiktok.module';
+import { QueueModule } from './queue/queue.module';
 
 @Module({
-  imports: [AuthModule, TikTokModule, FilesModule],
+  imports: [AuthModule, TikTokModule, FilesModule, QueueModule],
   controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule {}
-
 ```
 
 # src/app.service.ts
@@ -335,7 +331,6 @@ export class AppService {
     return 'Hello World!';
   }
 }
-
 ```
 
 # src/auth/auth.controller.ts
@@ -356,7 +351,10 @@ export class AuthController {
   ) {}
 
   @Post('login')
-  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const { user, session } = this.authService.login(dto);
 
     res.cookie(this.sessionService.getSessionCookieName(), session.token, {
@@ -376,7 +374,6 @@ export class AuthController {
     };
   }
 }
-
 ```
 
 # src/auth/auth.module.ts
@@ -395,8 +392,6 @@ import { AuthService } from './auth.service';
   exports: [AuthService],
 })
 export class AuthModule {}
-
-
 ```
 
 # src/auth/auth.service.ts
@@ -409,7 +404,11 @@ import {
 } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 
-import { SessionData, SessionService, SessionUser } from '../common/session/session.service';
+import {
+  SessionData,
+  SessionService,
+  SessionUser,
+} from '../common/session/session.service';
 import { LoginDto } from './dto/login.dto';
 
 interface LoginResult {
@@ -430,15 +429,22 @@ export class AuthService {
       throw new InternalServerErrorException('POSTIZ_EMAIL is not configured');
     }
     if (!configuredPassword) {
-      throw new InternalServerErrorException('POSTIZ_PASSWORD is not configured');
+      throw new InternalServerErrorException(
+        'POSTIZ_PASSWORD is not configured',
+      );
     }
     if (!configuredProvider) {
-      throw new InternalServerErrorException('POSTIZ_PROVIDER is not configured');
+      throw new InternalServerErrorException(
+        'POSTIZ_PROVIDER is not configured',
+      );
     }
 
-    const matchesEmail = dto.email.trim().toLowerCase() === configuredEmail.trim().toLowerCase();
+    const matchesEmail =
+      dto.email.trim().toLowerCase() === configuredEmail.trim().toLowerCase();
     const matchesPassword = dto.password === configuredPassword;
-    const matchesProvider = dto.provider.trim().toLowerCase() === configuredProvider.trim().toLowerCase();
+    const matchesProvider =
+      dto.provider.trim().toLowerCase() ===
+      configuredProvider.trim().toLowerCase();
 
     if (!matchesEmail || !matchesPassword || !matchesProvider) {
       throw new UnauthorizedException('Invalid login credentials');
@@ -459,8 +465,6 @@ export class AuthService {
     return `user_${digest.slice(0, 24)}`;
   }
 }
-
-
 ```
 
 # src/auth/dto/login.dto.ts
@@ -480,8 +484,6 @@ export class LoginDto {
   @IsNotEmpty()
   provider!: string;
 }
-
-
 ```
 
 # src/common/session/session.module.ts
@@ -497,8 +499,6 @@ import { SessionService } from './session.service';
   exports: [SessionService],
 })
 export class SessionModule {}
-
-
 ```
 
 # src/common/session/session.service.ts
@@ -537,7 +537,7 @@ export class SessionService {
   private readonly sessionCookieName = 'postiz_auth';
   private readonly sessionTtlMs = 1000 * 60 * 60 * 12; // 12 hours
   private readonly stateTtlMs = 1000 * 60 * 5; // 5 minutes
-  
+
   createSession(user: SessionUser): SessionData {
     const token = randomUUID();
     const id = randomUUID();
@@ -673,13 +673,19 @@ export class SessionService {
       .replace(/=+$/g, '');
   }
 }
-
 ```
 
 # src/files/dto/presign-request.dto.ts
 
 ```ts
-import { IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+import {
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  Min,
+} from 'class-validator';
 
 export class PresignRequestDto {
   @IsString()
@@ -695,7 +701,6 @@ export class PresignRequestDto {
   @Max(3600)
   expiresInSec?: number;
 }
-
 ```
 
 # src/files/files.controller.ts
@@ -719,7 +724,6 @@ export class FilesController {
     });
   }
 }
-
 ```
 
 # src/files/files.module.ts
@@ -736,7 +740,6 @@ import { FilesService } from './files.service';
   exports: [FilesService],
 })
 export class FilesModule {}
-
 ```
 
 # src/files/files.service.ts
@@ -754,12 +757,15 @@ interface PresignParams {
 
 @Injectable()
 export class FilesService {
-  private readonly bucket = process.env.HCLOUD_S3_BUCKET ?? 'slidescockpit-files';
-  private readonly publicBaseUrl = process.env.HCLOUD_S3_PUBLIC_BASE_URL ?? 'https://files.slidescockpit.com';
+  private readonly bucket =
+    process.env.HCLOUD_S3_BUCKET ?? 'slidescockpit-files';
+  private readonly publicBaseUrl =
+    process.env.HCLOUD_S3_PUBLIC_BASE_URL ?? 'https://files.slidescockpit.com';
 
   private readonly s3 = new S3Client({
     region: process.env.HCLOUD_S3_REGION ?? 'nbg1',
-    endpoint: process.env.HCLOUD_S3_ENDPOINT ?? 'https://nbg1.your-objectstorage.com',
+    endpoint:
+      process.env.HCLOUD_S3_ENDPOINT ?? 'https://nbg1.your-objectstorage.com',
     forcePathStyle: false,
     credentials: {
       accessKeyId: this.requireEnv('HCLOUD_S3_KEY'),
@@ -768,7 +774,11 @@ export class FilesService {
   });
 
   async createUploadUrl(params: PresignParams) {
-    const { key, contentType = 'application/octet-stream', expiresInSec = 900 } = params;
+    const {
+      key,
+      contentType = 'application/octet-stream',
+      expiresInSec = 900,
+    } = params;
     const normalizedKey = this.normalizeKey(key);
 
     const command = new PutObjectCommand({
@@ -778,7 +788,9 @@ export class FilesService {
       ACL: 'private',
     });
 
-    const uploadUrl = await getSignedUrl(this.s3, command, { expiresIn: expiresInSec });
+    const uploadUrl = await getSignedUrl(this.s3, command, {
+      expiresIn: expiresInSec,
+    });
     const publicUrl = `${this.publicBaseUrl}/${encodeURI(normalizedKey)}`;
 
     return {
@@ -803,12 +815,13 @@ export class FilesService {
   private requireEnv(name: string): string {
     const value = process.env[name];
     if (!value || value.trim().length === 0) {
-      throw new InternalServerErrorException(`${name} environment variable is not configured`);
+      throw new InternalServerErrorException(
+        `${name} environment variable is not configured`,
+      );
     }
     return value;
   }
 }
-
 ```
 
 # src/integrations/social/social.abstract.ts
@@ -875,7 +888,6 @@ export abstract class SocialAbstract {
     await new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
-
 ```
 
 # src/integrations/tiktok/dto/connect-tiktok.dto.ts
@@ -896,8 +908,6 @@ export class ConnectTikTokDto {
   @IsOptional()
   timezone?: string;
 }
-
-
 ```
 
 # src/integrations/tiktok/dto/post-tiktok.dto.ts
@@ -994,7 +1004,33 @@ export class TikTokPostRequestDto {
   @Type(() => TikTokPostingSettingsDto)
   settings?: TikTokPostingSettingsDto;
 }
+```
 
+# src/integrations/tiktok/dto/schedule-tiktok.dto.ts
+
+```ts
+import { Type } from 'class-transformer';
+import {
+  IsDateString,
+  IsNotEmpty,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
+
+import { TikTokPostRequestDto } from './post-tiktok.dto';
+
+export class ScheduleTikTokDto {
+  @IsDateString()
+  publishAt!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  idempotencyKey!: string;
+
+  @ValidateNested()
+  @Type(() => TikTokPostRequestDto)
+  post!: TikTokPostRequestDto;
+}
 ```
 
 # src/integrations/tiktok/tiktok-account.repository.ts
@@ -1033,7 +1069,10 @@ export class TikTokAccountRepository {
       .map((account) => ({ ...account }));
   }
 
-  async getAccount(userId: string, openId: string): Promise<TikTokAccount | undefined> {
+  async getAccount(
+    userId: string,
+    openId: string,
+  ): Promise<TikTokAccount | undefined> {
     await this.ready;
     const normalized = this.normalizeOpenId(openId);
     const found = this.cache.find(
@@ -1132,8 +1171,7 @@ export class TikTokAccountRepository {
           : null,
       username:
         typeof candidate.username === 'string' ? candidate.username : null,
-      unionId:
-        typeof candidate.unionId === 'string' ? candidate.unionId : null,
+      unionId: typeof candidate.unionId === 'string' ? candidate.unionId : null,
       avatarUrl:
         typeof candidate.avatarUrl === 'string' ? candidate.avatarUrl : null,
       accessToken:
@@ -1188,13 +1226,19 @@ export class TikTokAccountRepository {
     return [];
   }
 }
-
 ```
 
 # src/integrations/tiktok/tiktok.controller.ts
 
 ```ts
-import { Body, Controller, Get, Headers, Post, BadRequestException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Post,
+  BadRequestException,
+} from '@nestjs/common';
 
 import { SessionService } from '../../common/session/session.service';
 import { ConnectTikTokDto } from './dto/connect-tiktok.dto';
@@ -1211,13 +1255,22 @@ export class TikTokController {
   start(@Headers('x-user-id') userId: string) {
     const resolvedUserId = this.ensureUserId(userId);
     const pendingState = this.sessionService.registerState(resolvedUserId);
-    return this.tikTokService.start(pendingState.state, pendingState.codeVerifier);
+    return this.tikTokService.start(
+      pendingState.state,
+      pendingState.codeVerifier,
+    );
   }
 
   @Post('connect')
-  async connect(@Headers('x-user-id') userId: string, @Body() dto: ConnectTikTokDto) {
+  async connect(
+    @Headers('x-user-id') userId: string,
+    @Body() dto: ConnectTikTokDto,
+  ) {
     const resolvedUserId = this.ensureUserId(userId);
-    const pendingState = this.sessionService.consumeState(resolvedUserId, dto.state);
+    const pendingState = this.sessionService.consumeState(
+      resolvedUserId,
+      dto.state,
+    );
     const account = await this.tikTokService.connect(
       resolvedUserId,
       dto,
@@ -1235,11 +1288,9 @@ export class TikTokController {
   async listAccounts(@Headers('x-user-id') userId: string) {
     const resolvedUserId = this.ensureUserId(userId);
     const accounts = await this.tikTokService.listAccounts(resolvedUserId);
-    return accounts.map(({ accessToken, refreshToken, ...publicAccount }) => (
-      {
-        ...publicAccount,
-      }
-    ));
+    return accounts.map(({ accessToken, refreshToken, ...publicAccount }) => ({
+      ...publicAccount,
+    }));
   }
 
   private ensureUserId(userId: string | undefined): string {
@@ -1249,7 +1300,6 @@ export class TikTokController {
     return userId.trim();
   }
 }
-
 ```
 
 # src/integrations/tiktok/tiktok.module.ts
@@ -1264,20 +1314,40 @@ import { TikTokPostingController } from './tiktok.posting.controller';
 import { TikTokPostingProvider } from './tiktok.posting.provider';
 import { TikTokPostingService } from './tiktok.posting.service';
 import { TikTokService } from './tiktok.service';
+import { TikTokScheduler } from './tiktok.scheduler';
+import { TikTokScheduleController } from './tiktok.schedule.controller';
 
 @Module({
   imports: [SessionModule],
-  controllers: [TikTokController, TikTokPostingController],
-  providers: [TikTokService, TikTokPostingService, TikTokPostingProvider, TikTokAccountRepository],
+  controllers: [
+    TikTokController,
+    TikTokPostingController,
+    TikTokScheduleController,
+  ],
+  providers: [
+    TikTokService,
+    TikTokPostingService,
+    TikTokPostingProvider,
+    TikTokAccountRepository,
+    TikTokScheduler,
+  ],
 })
 export class TikTokModule {}
-
 ```
 
 # src/integrations/tiktok/tiktok.posting.controller.ts
 
 ```ts
-import { BadRequestException, Body, Controller, Get, Headers, Param, Post, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 
 import { TikTokPostRequestDto } from './dto/post-tiktok.dto';
 import { TikTokPostingService } from './tiktok.posting.service';
@@ -1295,12 +1365,25 @@ export class TikTokPostingController {
   ) {
     const resolvedUserId = this.ensureUserId(userId);
     if (typeof asyncFlag === 'string' && /^(1|true)$/i.test(asyncFlag.trim())) {
-      const init = await this.postingService.postAsync(resolvedUserId, openId, body);
-      return { accepted: true, publishId: init.publishId, status: 'processing' as const };
+      const init = await this.postingService.postAsync(
+        resolvedUserId,
+        openId,
+        body,
+      );
+      return {
+        accepted: true,
+        publishId: init.publishId,
+        status: 'processing' as const,
+      };
     }
 
     const result = await this.postingService.post(resolvedUserId, openId, body);
-    return { success: true, postId: result.postId, releaseUrl: result.releaseUrl, status: result.status };
+    return {
+      success: true,
+      postId: result.postId,
+      releaseUrl: result.releaseUrl,
+      status: result.status,
+    };
   }
 
   @Get(':openId/post/status/:publishId')
@@ -1320,17 +1403,27 @@ export class TikTokPostingController {
     return value.trim();
   }
 }
-
 ```
 
 # src/integrations/tiktok/tiktok.posting.provider.ts
 
 ```ts
-import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 
-import { BadBody, RefreshToken, SocialAbstract } from '../social/social.abstract';
+import {
+  BadBody,
+  RefreshToken,
+  SocialAbstract,
+} from '../social/social.abstract';
 import { TikTokAccount } from './tiktok.types';
-import { TikTokPostRequestDto, TikTokPostingSettingsDto } from './dto/post-tiktok.dto';
+import {
+  TikTokPostRequestDto,
+  TikTokPostingSettingsDto,
+} from './dto/post-tiktok.dto';
 
 type TikTokPostResult =
   | {
@@ -1382,11 +1475,14 @@ export class TikTokPostingProvider extends SocialAbstract {
       refresh_token: refreshToken,
     });
 
-    const response = await this.fetch('https://open.tiktokapis.com/v2/oauth/token/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: form.toString(),
-    });
+    const response = await this.fetch(
+      'https://open.tiktokapis.com/v2/oauth/token/',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form.toString(),
+      },
+    );
 
     const payload = await response.json().catch(() => undefined);
     if (!response.ok) {
@@ -1402,7 +1498,8 @@ export class TikTokPostingProvider extends SocialAbstract {
     this.checkScopes(this.scopes, scope);
 
     const accessToken = data?.access_token ?? payload?.access_token;
-    const nextRefreshToken = data?.refresh_token ?? payload?.refresh_token ?? refreshToken;
+    const nextRefreshToken =
+      data?.refresh_token ?? payload?.refresh_token ?? refreshToken;
 
     if (!accessToken) {
       throw new RefreshToken('TikTok refresh did not return an access token');
@@ -1413,11 +1510,13 @@ export class TikTokPostingProvider extends SocialAbstract {
     return {
       accessToken,
       refreshToken: nextRefreshToken,
-      expiresIn: typeof (data?.expires_in ?? payload?.expires_in) === 'number'
-        ? (data?.expires_in ?? payload?.expires_in)
-        : null,
+      expiresIn:
+        typeof (data?.expires_in ?? payload?.expires_in) === 'number'
+          ? (data?.expires_in ?? payload?.expires_in)
+          : null,
       refreshExpiresIn:
-        typeof (data?.refresh_expires_in ?? payload?.refresh_expires_in) === 'number'
+        typeof (data?.refresh_expires_in ?? payload?.refresh_expires_in) ===
+        'number'
           ? (data?.refresh_expires_in ?? payload?.refresh_expires_in)
           : null,
       scope,
@@ -1428,7 +1527,10 @@ export class TikTokPostingProvider extends SocialAbstract {
     };
   }
 
-  async post(account: TikTokAccount, payload: TikTokPostRequestDto): Promise<TikTokPostResult> {
+  async post(
+    account: TikTokAccount,
+    payload: TikTokPostRequestDto,
+  ): Promise<TikTokPostResult> {
     const { publishId } = await this.initPost(account, payload);
 
     const finalState = await this.uploadedVideoSuccess(
@@ -1452,16 +1554,25 @@ export class TikTokPostingProvider extends SocialAbstract {
     };
   }
 
-  async initPostOnly(account: TikTokAccount, payload: TikTokPostRequestDto): Promise<{ publishId: string }> {
+  async initPostOnly(
+    account: TikTokAccount,
+    payload: TikTokPostRequestDto,
+  ): Promise<{ publishId: string }> {
     return this.initPost(account, payload);
   }
 
-  private async initPost(account: TikTokAccount, payload: TikTokPostRequestDto): Promise<{ publishId: string }> {
+  private async initPost(
+    account: TikTokAccount,
+    payload: TikTokPostRequestDto,
+  ): Promise<{ publishId: string }> {
     this.checkScopes(this.scopes, account.scope ?? []);
 
     const media = payload.media ?? [];
     if (media.length === 0) {
-      throw new BadBody('tiktok-missing-media', 'No media provided for TikTok post');
+      throw new BadBody(
+        'tiktok-missing-media',
+        'No media provided for TikTok post',
+      );
     }
 
     const primaryMedia = media[0];
@@ -1479,7 +1590,10 @@ export class TikTokPostingProvider extends SocialAbstract {
       title: payload.settings?.title,
     };
 
-    const endpointPath = this.postingMethod(settings.contentPostingMethod ?? 'DIRECT_POST', isPhoto);
+    const endpointPath = this.postingMethod(
+      settings.contentPostingMethod ?? 'DIRECT_POST',
+      isPhoto,
+    );
     const endpoint = `https://open.tiktokapis.com/v2/post/publish${endpointPath}`;
 
     const body = this.buildPostBody(
@@ -1560,14 +1674,20 @@ export class TikTokPostingProvider extends SocialAbstract {
         'tiktok-post-status-failed',
         serialized,
         Buffer.from(serialized),
-        handled?.value ?? this.extractErrorMessage(payload) ?? 'Failed to retrieve TikTok publish status',
+        handled?.value ??
+          this.extractErrorMessage(payload) ??
+          'Failed to retrieve TikTok publish status',
       );
     }
 
-    const { status, publicly_available_post_id, publicaly_available_post_id } = payload.data;
+    const { status, publicly_available_post_id, publicaly_available_post_id } =
+      payload.data;
 
     if (status === 'PUBLISH_COMPLETE') {
-      const postId = publicly_available_post_id?.[0] ?? publicaly_available_post_id?.[0] ?? publishId;
+      const postId =
+        publicly_available_post_id?.[0] ??
+        publicaly_available_post_id?.[0] ??
+        publishId;
       const url = publicly_available_post_id?.[0]
         ? `https://www.tiktok.com/@${profileId}/video/${publicly_available_post_id[0]}`
         : `https://www.tiktok.com/@${profileId}`;
@@ -1601,7 +1721,7 @@ export class TikTokPostingProvider extends SocialAbstract {
     const body: Record<string, unknown> = {};
     const resolvedPostMode = this.resolvePostMode(settings, postMode, isPhoto);
 
-    const titleSource = isPhoto ? settings.title ?? caption : caption;
+    const titleSource = isPhoto ? (settings.title ?? caption) : caption;
     const postInfo: Record<string, unknown> = {
       privacy_level: settings.privacyLevel ?? 'SELF_ONLY',
       disable_duet: !(settings.duet ?? false),
@@ -1648,7 +1768,10 @@ export class TikTokPostingProvider extends SocialAbstract {
     return body;
   }
 
-  private postingMethod(method: TikTokPostingSettingsDto['contentPostingMethod'], isPhoto: boolean): string {
+  private postingMethod(
+    method: TikTokPostingSettingsDto['contentPostingMethod'],
+    isPhoto: boolean,
+  ): string {
     switch (method) {
       case 'UPLOAD':
       case 'MEDIA_UPLOAD':
@@ -1696,9 +1819,14 @@ export class TikTokPostingProvider extends SocialAbstract {
     profileId: string,
     publishId: string,
     accessToken: string,
-  ): Promise<{ status: 'success'; id: string; url?: string } | { status: 'inbox'; id?: string; url?: string }> {
+  ): Promise<
+    | { status: 'success'; id: string; url?: string }
+    | { status: 'inbox'; id?: string; url?: string }
+  > {
     const maxAttempts = Number(process.env.TIKTOK_POST_STATUS_ATTEMPTS ?? 30);
-    const intervalMs = Number(process.env.TIKTOK_POST_STATUS_INTERVAL_MS ?? 10_000);
+    const intervalMs = Number(
+      process.env.TIKTOK_POST_STATUS_INTERVAL_MS ?? 10_000,
+    );
     let attempts = 0;
 
     while (attempts < maxAttempts) {
@@ -1738,14 +1866,23 @@ export class TikTokPostingProvider extends SocialAbstract {
           'tiktok-post-status-failed',
           serialized,
           Buffer.from(serialized),
-          handled?.value ?? this.extractErrorMessage(payload) ?? 'Failed to retrieve TikTok publish status',
+          handled?.value ??
+            this.extractErrorMessage(payload) ??
+            'Failed to retrieve TikTok publish status',
         );
       }
 
-      const { status, publicly_available_post_id, publicaly_available_post_id } = payload.data;
+      const {
+        status,
+        publicly_available_post_id,
+        publicaly_available_post_id,
+      } = payload.data;
 
       if (status === 'PUBLISH_COMPLETE') {
-        const postId = publicly_available_post_id?.[0] ?? publicaly_available_post_id?.[0] ?? publishId;
+        const postId =
+          publicly_available_post_id?.[0] ??
+          publicaly_available_post_id?.[0] ??
+          publishId;
         const url = publicly_available_post_id?.[0]
           ? `https://www.tiktok.com/@${profileId}/video/${publicly_available_post_id[0]}`
           : `https://www.tiktok.com/@${profileId}`;
@@ -1767,7 +1904,9 @@ export class TikTokPostingProvider extends SocialAbstract {
           'tiktok-post-failed',
           serialized,
           Buffer.from(serialized),
-          handled?.value ?? this.extractErrorMessage(payload) ?? 'TikTok marked the publish as failed',
+          handled?.value ??
+            this.extractErrorMessage(payload) ??
+            'TikTok marked the publish as failed',
         );
       }
 
@@ -1789,15 +1928,16 @@ export class TikTokPostingProvider extends SocialAbstract {
     );
   }
 
-  private handleErrors(body: string):
-    | { type: 'refresh-token' | 'bad-body'; value: string }
-    | undefined {
+  private handleErrors(
+    body: string,
+  ): { type: 'refresh-token' | 'bad-body'; value: string } | undefined {
     const normalized = body.toLowerCase();
 
     if (normalized.includes('access_token_invalid')) {
       return {
         type: 'refresh-token',
-        value: 'Access token invalid, please re-authenticate your TikTok account',
+        value:
+          'Access token invalid, please re-authenticate your TikTok account',
       };
     }
 
@@ -1871,14 +2011,20 @@ export class TikTokPostingProvider extends SocialAbstract {
       };
     }
 
-    if (normalized.includes('unaudited_client_can_only_post_to_private_accounts')) {
+    if (
+      normalized.includes('unaudited_client_can_only_post_to_private_accounts')
+    ) {
       return {
         type: 'bad-body',
-        value: 'TikTok app is not approved for public posting. Contact support.',
+        value:
+          'TikTok app is not approved for public posting. Contact support.',
       };
     }
 
-    if (normalized.includes('invalid_file_upload') || normalized.includes('invalid_params')) {
+    if (
+      normalized.includes('invalid_file_upload') ||
+      normalized.includes('invalid_params')
+    ) {
       return {
         type: 'bad-body',
         value: 'TikTok rejected the request due to invalid media or parameters',
@@ -1888,7 +2034,8 @@ export class TikTokPostingProvider extends SocialAbstract {
     if (normalized.includes('internal')) {
       return {
         type: 'bad-body',
-        value: 'TikTok servers reported an internal error. Please try again later.',
+        value:
+          'TikTok servers reported an internal error. Please try again later.',
       };
     }
 
@@ -1921,11 +2068,15 @@ export class TikTokPostingProvider extends SocialAbstract {
     }
 
     const user = payload.data.user;
-    const openId = typeof user?.open_id === 'string' ? this.normalizeOpenId(user.open_id) : null;
+    const openId =
+      typeof user?.open_id === 'string'
+        ? this.normalizeOpenId(user.open_id)
+        : null;
 
     return {
       openId,
-      displayName: typeof user?.display_name === 'string' ? user.display_name : null,
+      displayName:
+        typeof user?.display_name === 'string' ? user.display_name : null,
       username: typeof user?.username === 'string' ? user.username : null,
       avatarUrl: typeof user?.avatar_url === 'string' ? user.avatar_url : null,
     };
@@ -1982,7 +2133,10 @@ export class TikTokPostingProvider extends SocialAbstract {
       return undefined;
     }
 
-    if (typeof payload.message === 'string' && payload.message.trim().length > 0) {
+    if (
+      typeof payload.message === 'string' &&
+      payload.message.trim().length > 0
+    ) {
       return payload.message;
     }
 
@@ -2012,14 +2166,16 @@ export class TikTokPostingProvider extends SocialAbstract {
       return (payload.data as any).error.message;
     }
 
-    if (typeof payload.description === 'string' && payload.description.trim().length > 0) {
+    if (
+      typeof payload.description === 'string' &&
+      payload.description.trim().length > 0
+    ) {
       return payload.description;
     }
 
     return undefined;
   }
 }
-
 ```
 
 # src/integrations/tiktok/tiktok.posting.service.ts
@@ -2103,7 +2259,10 @@ export class TikTokPostingService {
     const readyAccount = await this.ensureFreshToken(account);
 
     try {
-      const { publishId } = await this.provider.initPostOnly(readyAccount, payload);
+      const { publishId } = await this.provider.initPostOnly(
+        readyAccount,
+        payload,
+      );
       await this.repository.upsertAccount({
         ...readyAccount,
         updatedAt: new Date().toISOString(),
@@ -2132,7 +2291,11 @@ export class TikTokPostingService {
     userId: string,
     openId: string,
     publishId: string,
-  ): Promise<{ status: 'processing' | 'failed' | 'success' | 'inbox'; postId?: string; releaseUrl?: string }> {
+  ): Promise<{
+    status: 'processing' | 'failed' | 'success' | 'inbox';
+    postId?: string;
+    releaseUrl?: string;
+  }> {
     const account = await this.repository.getAccount(userId, openId);
     if (!account) {
       throw new BadRequestException('TikTok account not found');
@@ -2175,7 +2338,9 @@ export class TikTokPostingService {
     }
   }
 
-  private async ensureFreshToken(account: TikTokAccount): Promise<TikTokAccount> {
+  private async ensureFreshToken(
+    account: TikTokAccount,
+  ): Promise<TikTokAccount> {
     const expiresAt = Date.parse(account.expiresAt);
     const needsRefresh =
       Number.isNaN(expiresAt) || expiresAt - Date.now() < 60 * 1000;
@@ -2220,7 +2385,104 @@ export class TikTokPostingService {
     return new Date(base + seconds * 1000).toISOString();
   }
 }
+```
 
+# src/integrations/tiktok/tiktok.schedule.controller.ts
+
+```ts
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Headers,
+  Param,
+  Post,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+
+import { QueueService } from '../../queue/queue.service';
+import { ScheduleTikTokDto } from './dto/schedule-tiktok.dto';
+
+@Controller('integrations/social/tiktok')
+export class TikTokScheduleController {
+  constructor(private readonly queue: QueueService) {}
+
+  @Post(':openId/schedule')
+  async schedulePost(
+    @Headers('x-user-id') userId: string,
+    @Param('openId') openId: string,
+    @Body() body: ScheduleTikTokDto,
+  ) {
+    const trimmedUserId = userId?.trim();
+    if (!trimmedUserId) {
+      throw new BadRequestException('Missing x-user-id header');
+    }
+
+    const when = new Date(body.publishAt);
+    if (Number.isNaN(when.getTime())) {
+      throw new BadRequestException('Invalid publishAt');
+    }
+
+    if (!this.queue.isReady()) {
+      throw new ServiceUnavailableException(
+        'Scheduling queue is not configured',
+      );
+    }
+
+    await this.queue.addDelayed(
+      'tiktok.post.at',
+      {
+        idempotencyKey: body.idempotencyKey,
+        userId: trimmedUserId,
+        openId: openId.trim(),
+        body: body.post,
+      },
+      when,
+    );
+
+    return {
+      scheduled: true,
+      runAt: when.toISOString(),
+      jobKey: body.idempotencyKey,
+    };
+  }
+}
+```
+
+# src/integrations/tiktok/tiktok.scheduler.ts
+
+```ts
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+
+import { QueueService } from '../../queue/queue.service';
+import { TikTokPostRequestDto } from './dto/post-tiktok.dto';
+import { TikTokPostingService } from './tiktok.posting.service';
+
+interface ScheduleJobPayload {
+  userId: string;
+  openId: string;
+  body: TikTokPostRequestDto;
+}
+
+@Injectable()
+export class TikTokScheduler implements OnModuleInit {
+  private readonly logger = new Logger(TikTokScheduler.name);
+
+  constructor(
+    private readonly queue: QueueService,
+    private readonly postingService: TikTokPostingService,
+  ) {}
+
+  onModuleInit(): void {
+    this.queue.attachWorker(async (payload) => {
+      const { userId, openId, body } = payload as ScheduleJobPayload;
+      this.logger.log(
+        `Executing scheduled TikTok post for user=${userId} openId=${openId}`,
+      );
+      await this.postingService.post(userId, openId, body);
+    });
+  }
+}
 ```
 
 # src/integrations/tiktok/tiktok.service.ts
@@ -2274,9 +2536,7 @@ export class TikTokService {
   private readonly mockMode =
     (process.env.TIKTOK_MOCK ?? 'false').toLowerCase() === 'true';
 
-  constructor(
-    private readonly repository: TikTokAccountRepository,
-  ) {}
+  constructor(private readonly repository: TikTokAccountRepository) {}
 
   start(state: string, codeVerifier: string): { url: string } {
     const url = this.buildAuthorizeUrl(state, codeVerifier);
@@ -2305,7 +2565,8 @@ export class TikTokService {
     const now = new Date();
     const timezoneOffsetMinutes = this.parseTimezone(dto.timezone);
 
-    const rawOpenId = userInfo.openId ?? token.openId ?? this.ensureOpenId(token);
+    const rawOpenId =
+      userInfo.openId ?? token.openId ?? this.ensureOpenId(token);
     const normalizedOpenId = this.normalizeOpenId(rawOpenId);
 
     const account: TikTokAccount = {
@@ -2349,14 +2610,20 @@ export class TikTokService {
       form.set('code_verifier', codeVerifier);
     }
 
-    const response = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+    const response = await fetch(
+      'https://open.tiktokapis.com/v2/oauth/token/',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: form.toString(),
       },
-      body: form.toString(),
-    }).catch((error: unknown) => {
-      this.logger.error(`Failed to reach TikTok token endpoint`, error as Error);
+    ).catch((error: unknown) => {
+      this.logger.error(
+        `Failed to reach TikTok token endpoint`,
+        error as Error,
+      );
       throw new BadRequestException('Unable to reach TikTok token endpoint');
     });
 
@@ -2366,7 +2633,8 @@ export class TikTokService {
     if (!response.ok) {
       const message =
         (typeof data === 'object' && (data as any)?.message) ||
-        (typeof (data as any)?.error_msg === 'string' && (data as any).error_msg) ||
+        (typeof (data as any)?.error_msg === 'string' &&
+          (data as any).error_msg) ||
         'TikTok token exchange failed';
       throw new BadRequestException(message);
     }
@@ -2379,13 +2647,18 @@ export class TikTokService {
       accessToken: (data as any)?.access_token,
       refreshToken: (data as any)?.refresh_token ?? null,
       expiresIn:
-        typeof (data as any)?.expires_in === 'number' ? (data as any).expires_in : null,
+        typeof (data as any)?.expires_in === 'number'
+          ? (data as any).expires_in
+          : null,
       refreshExpiresIn:
         typeof (data as any)?.refresh_expires_in === 'number'
           ? (data as any).refresh_expires_in
           : null,
       scope,
-      openId: typeof (data as any)?.open_id === 'string' ? (data as any).open_id : null,
+      openId:
+        typeof (data as any)?.open_id === 'string'
+          ? (data as any).open_id
+          : null,
     };
   }
 
@@ -2403,8 +2676,13 @@ export class TikTokService {
         },
       },
     ).catch((error: unknown) => {
-      this.logger.error(`Failed to reach TikTok user info endpoint`, error as Error);
-      throw new BadRequestException('Unable to fetch TikTok profile information');
+      this.logger.error(
+        `Failed to reach TikTok user info endpoint`,
+        error as Error,
+      );
+      throw new BadRequestException(
+        'Unable to fetch TikTok profile information',
+      );
     });
 
     const payload = await this.safeJson(response);
@@ -2412,7 +2690,9 @@ export class TikTokService {
     const user: any = data?.user ?? {};
 
     if (!response.ok) {
-      const message = this.extractErrorMessage(payload) ?? 'TikTok user info retrieval failed';
+      const message =
+        this.extractErrorMessage(payload) ??
+        'TikTok user info retrieval failed';
       this.logger.warn(
         `TikTok user info request failed (status ${response.status}): ${message}`,
       );
@@ -2428,8 +2708,7 @@ export class TikTokService {
         typeof user?.display_name === 'string' ? user.display_name : null,
       username: typeof user?.username === 'string' ? user.username : null,
       unionId: typeof user?.union_id === 'string' ? user.union_id : null,
-      avatarUrl:
-        typeof user?.avatar_url === 'string' ? user.avatar_url : null,
+      avatarUrl: typeof user?.avatar_url === 'string' ? user.avatar_url : null,
     };
   }
 
@@ -2570,7 +2849,10 @@ export class TikTokService {
       return undefined;
     }
 
-    if (typeof payload.message === 'string' && payload.message.trim().length > 0) {
+    if (
+      typeof payload.message === 'string' &&
+      payload.message.trim().length > 0
+    ) {
       return payload.message;
     }
 
@@ -2595,7 +2877,10 @@ export class TikTokService {
     return undefined;
   }
 
-  private buildMockAccount(dto: ConnectTikTokDto, userId: string): TikTokAccount {
+  private buildMockAccount(
+    dto: ConnectTikTokDto,
+    userId: string,
+  ): TikTokAccount {
     const now = new Date();
     const accessToken = `mock_access_${randomBytes(8).toString('hex')}`;
     const refreshToken = `mock_refresh_${randomBytes(8).toString('hex')}`;
@@ -2620,7 +2905,6 @@ export class TikTokService {
     };
   }
 }
-
 ```
 
 # src/integrations/tiktok/tiktok.types.ts
@@ -2642,7 +2926,6 @@ export interface TikTokAccount {
   connectedAt: string;
   updatedAt: string;
 }
-
 ```
 
 # src/main.ts
@@ -2672,7 +2955,117 @@ async function bootstrap() {
   await app.listen(3000);
 }
 bootstrap();
+```
 
+# src/queue/queue.module.ts
+
+```ts
+import { Global, Module } from '@nestjs/common';
+
+import { QueueService } from './queue.service';
+
+@Global()
+@Module({
+  providers: [QueueService],
+  exports: [QueueService],
+})
+export class QueueModule {}
+```
+
+# src/queue/queue.service.ts
+
+```ts
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
+import { JobsOptions, Queue, Worker } from 'bullmq';
+import IORedis from 'ioredis';
+
+interface ScheduleJobPayload {
+  idempotencyKey: string;
+  userId: string;
+  openId: string;
+  body: unknown;
+}
+
+@Injectable()
+export class QueueService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(QueueService.name);
+  private connection?: IORedis;
+  private queue?: Queue<ScheduleJobPayload>;
+  private worker?: Worker<ScheduleJobPayload>;
+
+  async onModuleInit(): Promise<void> {
+    const redisUrl = process.env.REDIS_URL;
+    if (!redisUrl) {
+      this.logger.warn(
+        'REDIS_URL is not set; scheduling features are disabled',
+      );
+      return;
+    }
+
+    this.connection = new IORedis(redisUrl);
+    this.queue = new Queue<ScheduleJobPayload>(
+      process.env.POST_SCHEDULE_QUEUE ?? 'tiktok-posts',
+      {
+        connection: this.connection,
+      },
+    );
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    await this.worker?.close();
+    await this.queue?.close();
+    await this.connection?.quit();
+  }
+
+  async addDelayed(
+    name: string,
+    payload: ScheduleJobPayload,
+    runAt: Date,
+    opts: Partial<JobsOptions> = {},
+  ) {
+    if (!this.queue) {
+      throw new Error('Queue not initialised');
+    }
+
+    const jobId = `${process.env.POST_SCHEDULE_GROUP ?? 'slidescockpit'}:${payload.idempotencyKey}`;
+    return this.queue.add(name, payload, {
+      jobId,
+      delay: Math.max(0, runAt.getTime() - Date.now()),
+      removeOnComplete: 500,
+      removeOnFail: 1000,
+      ...opts,
+    });
+  }
+
+  attachWorker(
+    processor: (payload: ScheduleJobPayload) => Promise<void>,
+  ): void {
+    if (!this.queue || !this.connection) {
+      this.logger.warn('Queue not initialised; worker not attached');
+      return;
+    }
+    if (this.worker) {
+      return;
+    }
+
+    this.worker = new Worker<ScheduleJobPayload>(
+      this.queue.name,
+      async (job) => {
+        await processor(job.data);
+      },
+      { connection: this.connection, concurrency: 1 },
+    );
+  }
+
+  isReady(): boolean {
+    return Boolean(this.queue);
+  }
+}
 ```
 
 # storage/tiktok-accounts.json
@@ -2713,7 +3106,6 @@ describe('AppController (e2e)', () => {
       .expect('Hello World!');
   });
 });
-
 ```
 
 # test/jest-e2e.json
@@ -2728,7 +3120,6 @@ describe('AppController (e2e)', () => {
     "^.+\\.(t|j)s$": "ts-jest"
   }
 }
-
 ```
 
 # tsconfig.build.json
@@ -2738,7 +3129,6 @@ describe('AppController (e2e)', () => {
   "extends": "./tsconfig.json",
   "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]
 }
-
 ```
 
 # tsconfig.json
@@ -2765,6 +3155,4 @@ describe('AppController (e2e)', () => {
     "skipLibCheck": true
   }
 }
-
 ```
-
