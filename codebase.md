@@ -1332,14 +1332,20 @@ import { BadBody, RefreshToken, SocialAbstract } from '../social/social.abstract
 import { TikTokAccount } from './tiktok.types';
 import { TikTokPostRequestDto, TikTokPostingSettingsDto } from './dto/post-tiktok.dto';
 
-interface TikTokPostResult {
-  postId: string;
-  releaseUrl: string;
-  status: 'success';
-}
+type TikTokPostResult =
+  | {
+      postId: string;
+      releaseUrl?: string;
+      status: 'success';
+    }
+  | {
+      postId: string;
+      releaseUrl?: string;
+      status: 'inbox';
+    };
 
 interface TikTokPostStatusSingle {
-  status: 'processing' | 'success' | 'failed';
+  status: 'processing' | 'success' | 'failed' | 'inbox';
   id?: string;
   url?: string;
 }
@@ -1425,16 +1431,24 @@ export class TikTokPostingProvider extends SocialAbstract {
   async post(account: TikTokAccount, payload: TikTokPostRequestDto): Promise<TikTokPostResult> {
     const { publishId } = await this.initPost(account, payload);
 
-    const { url, id } = await this.uploadedVideoSuccess(
+    const finalState = await this.uploadedVideoSuccess(
       account.username ?? account.openId,
       publishId,
       account.accessToken,
     );
 
+    if (finalState.status === 'success') {
+      return {
+        postId: String(finalState.id),
+        ...(finalState.url ? { releaseUrl: finalState.url } : {}),
+        status: 'success',
+      };
+    }
+
     return {
-      postId: String(id),
-      releaseUrl: url,
-      status: 'success',
+      postId: String(finalState.id ?? publishId),
+      status: 'inbox',
+      releaseUrl: finalState.url,
     };
   }
 
@@ -1569,6 +1583,10 @@ export class TikTokPostingProvider extends SocialAbstract {
       return { status: 'failed' };
     }
 
+    if (status === 'SEND_TO_USER_INBOX') {
+      return { status: 'inbox', id: publishId };
+    }
+
     return { status: 'processing' };
   }
 
@@ -1678,7 +1696,7 @@ export class TikTokPostingProvider extends SocialAbstract {
     profileId: string,
     publishId: string,
     accessToken: string,
-  ): Promise<{ url: string; id: string }> {
+  ): Promise<{ status: 'success'; id: string; url?: string } | { status: 'inbox'; id?: string; url?: string }> {
     const maxAttempts = Number(process.env.TIKTOK_POST_STATUS_ATTEMPTS ?? 30);
     const intervalMs = Number(process.env.TIKTOK_POST_STATUS_INTERVAL_MS ?? 10_000);
     let attempts = 0;
@@ -1733,6 +1751,7 @@ export class TikTokPostingProvider extends SocialAbstract {
           : `https://www.tiktok.com/@${profileId}`;
 
         return {
+          status: 'success',
           id: String(postId),
           url,
         };
@@ -1750,6 +1769,13 @@ export class TikTokPostingProvider extends SocialAbstract {
           Buffer.from(serialized),
           handled?.value ?? this.extractErrorMessage(payload) ?? 'TikTok marked the publish as failed',
         );
+      }
+
+      if (status === 'SEND_TO_USER_INBOX') {
+        return {
+          status: 'inbox',
+          id: publishId,
+        };
       }
 
       await this.sleep(intervalMs);
@@ -2013,8 +2039,8 @@ import { TikTokPostingProvider } from './tiktok.posting.provider';
 
 interface TikTokPostOutcome {
   postId: string;
-  releaseUrl: string;
-  status: 'success';
+  releaseUrl?: string;
+  status: 'success' | 'inbox';
 }
 
 @Injectable()
@@ -2106,7 +2132,7 @@ export class TikTokPostingService {
     userId: string,
     openId: string,
     publishId: string,
-  ): Promise<{ status: 'processing' | 'failed' | 'success'; postId?: string; releaseUrl?: string }> {
+  ): Promise<{ status: 'processing' | 'failed' | 'success' | 'inbox'; postId?: string; releaseUrl?: string }> {
     const account = await this.repository.getAccount(userId, openId);
     if (!account) {
       throw new BadRequestException('TikTok account not found');
@@ -2127,6 +2153,9 @@ export class TikTokPostingService {
           postId: result.id,
           releaseUrl: result.url,
         };
+      }
+      if (result.status === 'inbox') {
+        return { status: 'inbox', postId: result.id };
       }
       if (result.status === 'processing') {
         return { status: 'processing' };
