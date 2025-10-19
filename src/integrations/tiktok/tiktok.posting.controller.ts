@@ -34,6 +34,21 @@ export class TikTokPostingController {
     return this.postingService.fetchStatus(resolvedUserId, openId, publishId);
   }
 
+  @Get(':openId/posts')
+  async listPostsForAccount(
+    @Headers('x-user-id') userId: string,
+    @Param('openId') openId: string,
+  ) {
+    const resolvedUserId = this.ensureUserId(userId);
+    return this.postingService.listPosts(resolvedUserId, openId);
+  }
+
+  @Get('posts')
+  async listPosts(@Headers('x-user-id') userId: string) {
+    const resolvedUserId = this.ensureUserId(userId);
+    return this.postingService.listPosts(resolvedUserId);
+  }
+
   private ensureUserId(value: string | undefined): string {
     if (!value || value.trim().length === 0) {
       throw new BadRequestException('Missing x-user-id header');

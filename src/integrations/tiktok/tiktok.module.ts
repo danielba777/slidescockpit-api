@@ -9,6 +9,7 @@ import { TikTokPostingService } from './tiktok.posting.service';
 import { TikTokService } from './tiktok.service';
 import { TikTokScheduler } from './tiktok.scheduler';
 import { TikTokScheduleController } from './tiktok.schedule.controller';
+import { ScheduledPostRepository } from './scheduled-post.repository';
 
 @Module({
   imports: [SessionModule],
@@ -18,6 +19,7 @@ import { TikTokScheduleController } from './tiktok.schedule.controller';
     TikTokPostingService,
     TikTokPostingProvider,
     TikTokAccountRepository,
+    ScheduledPostRepository,
     TikTokScheduler,
   ],
 })

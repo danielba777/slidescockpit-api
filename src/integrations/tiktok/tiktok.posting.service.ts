@@ -9,6 +9,7 @@ import { TikTokAccountRepository } from './tiktok-account.repository';
 import { TikTokPostRequestDto } from './dto/post-tiktok.dto';
 import { TikTokAccount } from './tiktok.types';
 import { TikTokPostingProvider } from './tiktok.posting.provider';
+import { PersistPayload, ScheduledPostRepository } from './scheduled-post.repository';
 
 interface TikTokPostOutcome {
   postId: string;
@@ -23,12 +24,14 @@ export class TikTokPostingService {
   constructor(
     private readonly repository: TikTokAccountRepository,
     private readonly provider: TikTokPostingProvider,
+    private readonly posts: ScheduledPostRepository,
   ) {}
 
   async post(
     userId: string,
     openId: string,
     payload: TikTokPostRequestDto,
+    options?: { jobId?: string },
   ): Promise<TikTokPostOutcome> {
     const account = await this.repository.getAccount(userId, openId);
     if (!account) {
@@ -43,8 +46,39 @@ export class TikTokPostingService {
         ...readyAccount,
         updatedAt: new Date().toISOString(),
       });
+
+      if (options?.jobId) {
+        await this.posts.markCompletedByJobId(options.jobId, {
+          status: result.status,
+          publishId: result.postId,
+          resultUrl: result.releaseUrl,
+        });
+      } else {
+        await this.posts.createImmediatePost({
+          userId,
+          openId,
+          payload: this.toPersistPayload(payload),
+          status: result.status,
+          publishId: result.postId,
+          resultUrl: result.releaseUrl,
+        });
+      }
+
       return result;
     } catch (error) {
+      const message = this.extractErrorMessage(error);
+      if (options?.jobId) {
+        await this.posts.markFailedByJobId(options.jobId, message);
+      } else {
+        await this.posts.createImmediatePost({
+          userId,
+          openId,
+          payload: this.toPersistPayload(payload),
+          status: 'failed',
+          idempotencyKey: undefined,
+        }).catch(() => undefined);
+      }
+
       if (error instanceof RefreshToken) {
         throw new BadRequestException(error.message);
       }
@@ -80,6 +114,13 @@ export class TikTokPostingService {
       await this.repository.upsertAccount({
         ...readyAccount,
         updatedAt: new Date().toISOString(),
+      });
+
+      await this.posts.createAsyncPost({
+        userId,
+        openId,
+        payload: this.toPersistPayload(payload),
+        publishId,
       });
       return { publishId };
     } catch (error) {
@@ -121,6 +162,10 @@ export class TikTokPostingService {
       );
 
       if (result.status === 'success') {
+        await this.posts.markCompletedByPublishId(publishId, {
+          status: 'success',
+          resultUrl: result.url,
+        });
         return {
           status: 'success',
           postId: result.id,
@@ -128,11 +173,15 @@ export class TikTokPostingService {
         };
       }
       if (result.status === 'inbox') {
+        await this.posts.markCompletedByPublishId(publishId, {
+          status: 'inbox',
+        });
         return { status: 'inbox', postId: result.id };
       }
       if (result.status === 'processing') {
         return { status: 'processing' };
       }
+      await this.posts.markFailedByPublishId(publishId, 'TikTok reported failure');
       return { status: 'failed' };
     } catch (error) {
       if (error instanceof RefreshToken) {
@@ -142,10 +191,15 @@ export class TikTokPostingService {
         this.logger.warn(
           `TikTok status check failed (${error.code}): ${error.hint ?? error.message}`,
         );
+        await this.posts.markFailedByPublishId(publishId, error.hint ?? error.message);
         throw new BadRequestException(error.hint ?? error.message);
       }
       throw error;
     }
+  }
+
+  async listPosts(userId: string, openId?: string) {
+    return this.posts.listPosts(userId, openId);
   }
 
   private async ensureFreshToken(account: TikTokAccount): Promise<TikTokAccount> {
@@ -191,5 +245,30 @@ export class TikTokPostingService {
   private calculateExpiry(seconds: number): string {
     const base = Date.now();
     return new Date(base + seconds * 1000).toISOString();
+  }
+
+  private toPersistPayload(payload: TikTokPostRequestDto): PersistPayload {
+    return {
+      caption: payload.caption ?? '',
+      media: payload.media ?? [],
+      postMode: payload.postMode,
+      settings: payload.settings,
+    } as unknown as PersistPayload;
+  }
+
+  private extractErrorMessage(error: unknown): string {
+    if (error instanceof BadBody) {
+      return error.hint ?? error.message;
+    }
+    if (error instanceof RefreshToken) {
+      return error.message;
+    }
+    if (error instanceof NotEnoughScopes) {
+      return `Missing TikTok permissions: ${error.missingScopes.join(', ')}`;
+    }
+    if (error instanceof Error) {
+      return error.message;
+    }
+    return String(error);
   }
 }

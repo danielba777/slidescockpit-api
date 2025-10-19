@@ -2,10 +2,15 @@ import { BadRequestException, Body, Controller, Headers, Param, Post, ServiceUna
 
 import { QueueService } from '../../queue/queue.service';
 import { ScheduleTikTokDto } from './dto/schedule-tiktok.dto';
+import { PersistPayload, ScheduledPostRepository } from './scheduled-post.repository';
+import { TikTokPostRequestDto } from './dto/post-tiktok.dto';
 
 @Controller('integrations/social/tiktok')
 export class TikTokScheduleController {
-  constructor(private readonly queue: QueueService) {}
+  constructor(
+    private readonly queue: QueueService,
+    private readonly posts: ScheduledPostRepository,
+  ) {}
 
   @Post(':openId/schedule')
   async schedulePost(
@@ -27,21 +32,43 @@ export class TikTokScheduleController {
       throw new ServiceUnavailableException('Scheduling queue is not configured');
     }
 
-    await this.queue.addDelayed(
+    const normalizedOpenId = openId.trim();
+
+    const job = await this.queue.addDelayed(
       'tiktok.post.at',
       {
         idempotencyKey: body.idempotencyKey,
         userId: trimmedUserId,
-        openId: openId.trim(),
+        openId: normalizedOpenId,
         body: body.post,
       },
       when,
     );
 
+    const jobId = job.id ?? body.idempotencyKey;
+
+    await this.posts.createScheduledPost({
+      userId: trimmedUserId,
+      openId: normalizedOpenId,
+      payload: this.toPersistPayload(body.post),
+      runAt: when,
+      jobId,
+      idempotencyKey: body.idempotencyKey,
+    });
+
     return {
       scheduled: true,
       runAt: when.toISOString(),
-      jobKey: body.idempotencyKey,
+      jobKey: jobId,
     };
+  }
+
+  private toPersistPayload(payload: TikTokPostRequestDto): PersistPayload {
+    return {
+      caption: payload.caption ?? '',
+      media: payload.media ?? [],
+      postMode: payload.postMode,
+      settings: payload.settings,
+    } as unknown as PersistPayload;
   }
 }
