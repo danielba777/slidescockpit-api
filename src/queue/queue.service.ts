@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { JobsOptions, Queue, Worker } from 'bullmq';
-import IORedis from 'ioredis';
+import IORedis, { RedisOptions } from 'ioredis';
 
 interface ScheduleJobPayload {
   idempotencyKey: string;
@@ -13,6 +13,7 @@ interface ScheduleJobPayload {
 export class QueueService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(QueueService.name);
   private connection?: IORedis;
+  private workerConnection?: IORedis;
   private queue?: Queue<ScheduleJobPayload>;
   private worker?: Worker<ScheduleJobPayload>;
 
@@ -23,7 +24,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    this.connection = new IORedis(redisUrl);
+    this.connection = this.createConnection(redisUrl);
     this.queue = new Queue<ScheduleJobPayload>(process.env.POST_SCHEDULE_QUEUE ?? 'tiktok-posts', {
       connection: this.connection,
     });
@@ -32,6 +33,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy(): Promise<void> {
     await this.worker?.close();
     await this.queue?.close();
+    await this.workerConnection?.quit();
     await this.connection?.quit();
   }
 
@@ -64,16 +66,30 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    this.worker = new Worker<ScheduleJobPayload>(
-      this.queue.name,
-      async (job) => {
-        await processor(job.data);
-      },
-      { connection: this.connection, concurrency: 1 },
-    );
+    const redisUrl = process.env.REDIS_URL;
+    if (!redisUrl) {
+      this.logger.warn('REDIS_URL is not set; worker cannot attach');
+      return;
+    }
+
+    this.workerConnection = this.createConnection(redisUrl);
+    this.worker = new Worker<ScheduleJobPayload>(this.queue.name, async (job) => processor(job.data), {
+      connection: this.workerConnection,
+      concurrency: 1,
+    });
   }
 
   isReady(): boolean {
     return Boolean(this.queue);
+  }
+
+  private createConnection(redisUrl: string): IORedis {
+    const baseOptions: RedisOptions = {
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false,
+      connectTimeout: 10_000,
+      keepAlive: 10_000,
+    };
+    return new IORedis(redisUrl, baseOptions);
   }
 }
