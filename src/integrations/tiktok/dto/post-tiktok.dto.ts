@@ -15,8 +15,8 @@ import { Type } from 'class-transformer';
 
 export class TikTokPostingSettingsDto {
   @IsOptional()
-  @IsEnum(['DIRECT_POST', 'UPLOAD'])
-  contentPostingMethod?: 'DIRECT_POST' | 'UPLOAD';
+  @IsEnum(['DIRECT_POST', 'UPLOAD', 'MEDIA_UPLOAD', 'URL'])
+  contentPostingMethod?: 'DIRECT_POST' | 'UPLOAD' | 'MEDIA_UPLOAD' | 'URL';
 
   @IsOptional()
   @IsString()
@@ -24,8 +24,8 @@ export class TikTokPostingSettingsDto {
   title?: string;
 
   @IsOptional()
-  @IsString()
-  privacyLevel?: string;
+  @IsEnum(['PUBLIC', 'FRIENDS', 'SELF_ONLY'])
+  privacyLevel?: 'PUBLIC' | 'FRIENDS' | 'SELF_ONLY';
 
   @IsOptional()
   @IsBoolean()
@@ -75,8 +75,8 @@ export class TikTokPostRequestDto {
   caption?: string;
 
   @IsOptional()
-  @IsEnum(['INBOX', 'PUBLISH'])
-  postMode?: 'INBOX' | 'PUBLISH';
+  @IsEnum(['INBOX', 'PUBLISH', 'DIRECT_POST', 'MEDIA_UPLOAD'])
+  postMode?: 'INBOX' | 'PUBLISH' | 'DIRECT_POST' | 'MEDIA_UPLOAD';
 
   @IsArray()
   @ArrayMinSize(1)

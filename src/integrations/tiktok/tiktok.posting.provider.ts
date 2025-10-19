@@ -251,10 +251,9 @@ export class TikTokPostingProvider extends SocialAbstract {
     isPhoto: boolean,
     postMode: TikTokPostRequestDto['postMode'],
   ): Record<string, unknown> {
-    const contentMethod = settings.contentPostingMethod ?? 'DIRECT_POST';
     const primary = media[0];
     const body: Record<string, unknown> = {};
-    const resolvedPostMode = postMode === 'PUBLISH' ? 'PUBLISH' : 'INBOX';
+    const resolvedPostMode = this.resolvePostMode(settings, postMode, isPhoto);
 
     const titleSource = isPhoto ? settings.title ?? caption : caption;
     const postInfo: Record<string, unknown> = {
@@ -285,7 +284,6 @@ export class TikTokPostingProvider extends SocialAbstract {
         photo_cover_index: 0,
         photo_images: media.map((item) => item.url),
       };
-      body.media_type = 'PHOTO';
     } else {
       const videoInfo: Record<string, unknown> = {
         source: 'PULL_FROM_URL',
@@ -299,6 +297,7 @@ export class TikTokPostingProvider extends SocialAbstract {
     }
 
     body.post_mode = resolvedPostMode;
+    body.media_type = isPhoto ? 'PHOTO' : 'VIDEO';
 
     return body;
   }
@@ -306,11 +305,45 @@ export class TikTokPostingProvider extends SocialAbstract {
   private postingMethod(method: TikTokPostingSettingsDto['contentPostingMethod'], isPhoto: boolean): string {
     switch (method) {
       case 'UPLOAD':
+      case 'MEDIA_UPLOAD':
         return isPhoto ? '/content/init/' : '/inbox/video/init/';
+      case 'URL':
       case 'DIRECT_POST':
       default:
         return isPhoto ? '/content/init/' : '/video/init/';
     }
+  }
+
+  private resolvePostMode(
+    settings: TikTokPostingSettingsDto,
+    requestedPostMode: TikTokPostRequestDto['postMode'],
+    isPhoto: boolean,
+  ): 'DIRECT_POST' | 'MEDIA_UPLOAD' {
+    switch (requestedPostMode) {
+      case 'DIRECT_POST':
+      case 'MEDIA_UPLOAD':
+        return requestedPostMode;
+      case 'PUBLISH':
+        return 'DIRECT_POST';
+      case 'INBOX':
+        return 'MEDIA_UPLOAD';
+      default:
+        break;
+    }
+
+    switch (settings.contentPostingMethod) {
+      case 'DIRECT_POST':
+        return 'DIRECT_POST';
+      case 'URL':
+        return 'DIRECT_POST';
+      case 'UPLOAD':
+      case 'MEDIA_UPLOAD':
+        return 'MEDIA_UPLOAD';
+      default:
+        break;
+    }
+
+    return isPhoto ? 'MEDIA_UPLOAD' : 'DIRECT_POST';
   }
 
   private async uploadedVideoSuccess(
