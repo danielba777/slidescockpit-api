@@ -140,7 +140,13 @@ export class TikTokPostingProvider extends SocialAbstract {
     const endpointPath = this.postingMethod(settings.contentPostingMethod ?? 'DIRECT_POST', isPhoto);
     const endpoint = `https://open.tiktokapis.com/v2/post/publish${endpointPath}`;
 
-    const body = this.buildPostBody(payload.caption ?? '', settings, media, isPhoto);
+    const body = this.buildPostBody(
+      payload.caption ?? '',
+      settings,
+      media,
+      isPhoto,
+      payload.postMode,
+    );
 
     const response = await this.fetch(endpoint, {
       method: 'POST',
@@ -243,10 +249,12 @@ export class TikTokPostingProvider extends SocialAbstract {
     settings: TikTokPostingSettingsDto,
     media: TikTokPostRequestDto['media'],
     isPhoto: boolean,
+    postMode: TikTokPostRequestDto['postMode'],
   ): Record<string, unknown> {
     const contentMethod = settings.contentPostingMethod ?? 'DIRECT_POST';
     const primary = media[0];
     const body: Record<string, unknown> = {};
+    const resolvedPostMode = postMode === 'PUBLISH' ? 'PUBLISH' : 'INBOX';
 
     const titleSource = isPhoto ? settings.title ?? caption : caption;
     const postInfo: Record<string, unknown> = {
@@ -277,7 +285,6 @@ export class TikTokPostingProvider extends SocialAbstract {
         photo_cover_index: 0,
         photo_images: media.map((item) => item.url),
       };
-      body.post_mode = contentMethod === 'DIRECT_POST' ? 'DIRECT_POST' : 'MEDIA_UPLOAD';
       body.media_type = 'PHOTO';
     } else {
       const videoInfo: Record<string, unknown> = {
@@ -290,6 +297,8 @@ export class TikTokPostingProvider extends SocialAbstract {
 
       body.source_info = videoInfo;
     }
+
+    body.post_mode = resolvedPostMode;
 
     return body;
   }

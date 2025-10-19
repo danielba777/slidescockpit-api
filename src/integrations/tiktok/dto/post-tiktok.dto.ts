@@ -74,6 +74,10 @@ export class TikTokPostRequestDto {
   @IsString()
   caption?: string;
 
+  @IsOptional()
+  @IsEnum(['INBOX', 'PUBLISH'])
+  postMode?: 'INBOX' | 'PUBLISH';
+
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })

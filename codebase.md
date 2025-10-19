@@ -979,6 +979,10 @@ export class TikTokPostRequestDto {
   @IsString()
   caption?: string;
 
+  @IsOptional()
+  @IsEnum(['INBOX', 'PUBLISH'])
+  postMode?: 'INBOX' | 'PUBLISH';
+
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
@@ -1322,7 +1326,7 @@ export class TikTokPostingController {
 # src/integrations/tiktok/tiktok.posting.provider.ts
 
 ```ts
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 
 import { BadBody, RefreshToken, SocialAbstract } from '../social/social.abstract';
 import { TikTokAccount } from './tiktok.types';
@@ -1354,6 +1358,7 @@ interface RefreshTokenResult {
 
 @Injectable()
 export class TikTokPostingProvider extends SocialAbstract {
+  protected readonly logger = new Logger(TikTokPostingProvider.name);
   private readonly clientKey = this.requireEnv('TIKTOK_CLIENT_KEY');
   private readonly clientSecret = this.requireEnv('TIKTOK_CLIENT_SECRET');
   private readonly scopes = [
@@ -1463,7 +1468,13 @@ export class TikTokPostingProvider extends SocialAbstract {
     const endpointPath = this.postingMethod(settings.contentPostingMethod ?? 'DIRECT_POST', isPhoto);
     const endpoint = `https://open.tiktokapis.com/v2/post/publish${endpointPath}`;
 
-    const body = this.buildPostBody(payload.caption ?? '', settings, media, isPhoto);
+    const body = this.buildPostBody(
+      payload.caption ?? '',
+      settings,
+      media,
+      isPhoto,
+      payload.postMode,
+    );
 
     const response = await this.fetch(endpoint, {
       method: 'POST',
@@ -1515,7 +1526,17 @@ export class TikTokPostingProvider extends SocialAbstract {
     );
 
     const payload = await response.json().catch(() => undefined);
+    this.logger.debug(
+      `TikTok fetchPublishStatus response (publishId ${publishId}, http ${response.status}): ${JSON.stringify(
+        payload ?? {},
+      )}`,
+    );
     if (!response.ok || !payload?.data) {
+      this.logger.warn(
+        `TikTok fetchPublishStatus returned unexpected payload (publishId ${publishId}, http ${response.status}): ${JSON.stringify(
+          payload ?? {},
+        )}`,
+      );
       const serialized = JSON.stringify(payload ?? {});
       const handled = this.handleErrors(serialized);
       if (handled?.type === 'refresh-token') {
@@ -1556,10 +1577,12 @@ export class TikTokPostingProvider extends SocialAbstract {
     settings: TikTokPostingSettingsDto,
     media: TikTokPostRequestDto['media'],
     isPhoto: boolean,
+    postMode: TikTokPostRequestDto['postMode'],
   ): Record<string, unknown> {
     const contentMethod = settings.contentPostingMethod ?? 'DIRECT_POST';
     const primary = media[0];
     const body: Record<string, unknown> = {};
+    const resolvedPostMode = postMode === 'PUBLISH' ? 'PUBLISH' : 'INBOX';
 
     const titleSource = isPhoto ? settings.title ?? caption : caption;
     const postInfo: Record<string, unknown> = {
@@ -1590,7 +1613,6 @@ export class TikTokPostingProvider extends SocialAbstract {
         photo_cover_index: 0,
         photo_images: media.map((item) => item.url),
       };
-      body.post_mode = contentMethod === 'DIRECT_POST' ? 'DIRECT_POST' : 'MEDIA_UPLOAD';
       body.media_type = 'PHOTO';
     } else {
       const videoInfo: Record<string, unknown> = {
@@ -1603,6 +1625,8 @@ export class TikTokPostingProvider extends SocialAbstract {
 
       body.source_info = videoInfo;
     }
+
+    body.post_mode = resolvedPostMode;
 
     return body;
   }
@@ -1643,7 +1667,17 @@ export class TikTokPostingProvider extends SocialAbstract {
       );
 
       const payload = await response.json().catch(() => undefined);
+      this.logger.debug(
+        `TikTok uploadedVideoSuccess attempt ${attempts}/${maxAttempts} (publishId ${publishId}, http ${response.status}): ${JSON.stringify(
+          payload ?? {},
+        )}`,
+      );
       if (!response.ok || !payload?.data) {
+        this.logger.warn(
+          `TikTok uploadedVideoSuccess received unexpected payload (publishId ${publishId}, http ${response.status}): ${JSON.stringify(
+            payload ?? {},
+          )}`,
+        );
         const serialized = JSON.stringify(payload ?? {});
         const handled = this.handleErrors(serialized);
         if (handled?.type === 'refresh-token') {
