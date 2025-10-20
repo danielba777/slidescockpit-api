@@ -36,6 +36,7 @@ export class TikTokAccountRepository {
 
   async upsertAccount(account: TikTokAccount): Promise<TikTokAccount> {
     const normalizedOpenId = this.normalizeOpenId(account.openId);
+    await this.ensureUser(account.userId);
 
     const result = await this.prisma.tikTokAccount.upsert({
       where: {
@@ -92,5 +93,17 @@ export class TikTokAccountRepository {
   private normalizeOpenId(openId: string): string {
     return openId.replace(/-/g, '').trim();
   }
-}
 
+  private async ensureUser(userId: string): Promise<void> {
+    const trimmedUserId = userId?.trim();
+    if (!trimmedUserId) {
+      throw new Error('Unable to upsert TikTok account without a userId');
+    }
+
+    await this.prisma.user.upsert({
+      where: { id: trimmedUserId },
+      update: {},
+      create: { id: trimmedUserId },
+    });
+  }
+}
