@@ -80,3 +80,34 @@ model PostEvent {
 
   @@index([scheduledPostId])
 }
+
+model ImageSet {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  category    String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  images      ImageSetImage[]
+  
+  @@index([slug])
+  @@index([category])
+  @@index([isActive])
+}
+
+model ImageSetImage {
+  id        String   @id @default(cuid())
+  imageSetId String
+  imageSet   ImageSet @relation(fields: [imageSetId], references: [id], onDelete: Cascade)
+  filename  String
+  url       String
+  metadata  Json?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  
+  @@index([imageSetId])
+  @@index([order])
+}
