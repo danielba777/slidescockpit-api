@@ -14,6 +14,7 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { SlideshowAccountsService } from './slideshow-accounts.service';
 import { SlideshowPostsService } from './slideshow-posts.service';
 import { Express } from 'express';
+import { CreateSlideshowAccountDto } from './dto/create-slideshow-account.dto';
 
 @Controller('slideshow-library')
 export class SlideshowLibraryController {
@@ -34,8 +35,20 @@ export class SlideshowLibraryController {
   }
 
   @Post('accounts')
-  async createAccount(@Body() data: any) {
+  async createAccount(@Body() data: CreateSlideshowAccountDto) {
     return this.accountsService.createAccount(data);
+  }
+
+  @Post('accounts/upload-profile')
+  @UseInterceptors(FilesInterceptor('profileImage', 1))
+  async uploadProfileImage(@UploadedFiles() files: Express.Multer.File[]) {
+    const file = files?.[0];
+    if (!file) {
+      return { success: false, error: 'No file uploaded' };
+    }
+
+    const url = await this.accountsService.uploadProfileImage(file);
+    return { success: true, url };
   }
 
   @Put('accounts/:id')
