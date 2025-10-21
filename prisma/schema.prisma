@@ -111,3 +111,77 @@ model ImageSetImage {
   @@index([imageSetId])
   @@index([order])
 }
+
+model SlideshowAccount {
+  id                String   @id @default(cuid())
+  username          String   @unique
+  displayName       String
+  bio               String?
+  profileImageUrl   String?
+  followerCount     Int      @default(0)
+  followingCount    Int      @default(0)
+  isVerified        Boolean  @default(false)
+  isActive          Boolean  @default(true)
+  lastSyncedAt      DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  posts             SlideshowPost[]
+  
+  @@index([username])
+  @@index([isActive])
+  @@index([lastSyncedAt])
+}
+
+model SlideshowPost {
+  id                String   @id @default(cuid())
+  accountId         String
+  account           SlideshowAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  
+  postId            String   @unique
+  caption           String?
+  likeCount         Int      @default(0)
+  viewCount         Int      @default(0)
+  commentCount      Int      @default(0)
+  shareCount        Int      @default(0)
+  createdAt         DateTime
+  publishedAt       DateTime
+  
+  duration          Int?
+  slideCount        Int      @default(0)
+  
+  isActive          Boolean  @default(true)
+  lastSyncedAt      DateTime @default(now())
+  syncedAt          DateTime @default(now())
+  
+  slides            SlideshowSlide[]
+  
+  @@index([accountId])
+  @@index([postId])
+  @@index([isActive])
+  @@index([publishedAt])
+  @@index([lastSyncedAt])
+}
+
+model SlideshowSlide {
+  id                String   @id @default(cuid())
+  postId            String
+  post              SlideshowPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  slideIndex        Int
+  duration          Int?
+  
+  imageUrl          String
+  textContent       String?
+  backgroundColor   String?
+  
+  textPosition      String?
+  textColor         String?
+  fontSize          Int?
+  
+  createdAt         DateTime @default(now())
+  
+  @@index([postId])
+  @@index([slideIndex])
+  @@unique([postId, slideIndex])
+}
