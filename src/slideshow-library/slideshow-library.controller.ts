@@ -1,7 +1,19 @@
 // src/slideshow-library/slideshow-library.controller.ts
-import { Controller, Get, Post, Put, Param, Body, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  UploadedFiles,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { SlideshowAccountsService } from './slideshow-accounts.service';
 import { SlideshowPostsService } from './slideshow-posts.service';
+import { Express } from 'express';
 
 @Controller('slideshow-library')
 export class SlideshowLibraryController {
@@ -53,6 +65,12 @@ export class SlideshowLibraryController {
   @Post('posts')
   async createPost(@Body() data: any) {
     return this.postsService.createPost(data);
+  }
+
+  @Post('posts/upload-slides')
+  @UseInterceptors(FilesInterceptor('slides', 50))
+  async uploadSlides(@UploadedFiles() files: Express.Multer.File[]) {
+    return this.postsService.uploadSlides(files);
   }
 
   @Put('posts/:postId/stats')
