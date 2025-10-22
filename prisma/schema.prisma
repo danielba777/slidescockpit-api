@@ -149,7 +149,8 @@ model SlideshowPost {
   
   duration          Int?
   slideCount        Int      @default(0)
-  
+  prompt            String?
+
   isActive          Boolean  @default(true)
   lastSyncedAt      DateTime @default(now())
   syncedAt          DateTime @default(now())

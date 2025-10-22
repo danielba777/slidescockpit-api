@@ -103,4 +103,12 @@ export class SlideshowLibraryController {
   ) {
     return this.postsService.updateSlideOrder(postId, body.slideIds);
   }
+
+  @Put('posts/:id/prompt')
+  async updatePostPrompt(
+    @Param('id') id: string,
+    @Body() body: { prompt?: string | null },
+  ) {
+    return this.postsService.updatePostPrompt(id, body.prompt ?? null);
+  }
 }

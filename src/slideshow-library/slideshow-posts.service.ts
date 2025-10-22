@@ -31,6 +31,7 @@ export class SlideshowPostsService {
     accountId: string;
     postId: string;
     caption?: string;
+    prompt?: string;
     likeCount?: number;
     viewCount?: number;
     commentCount?: number;
@@ -53,6 +54,10 @@ export class SlideshowPostsService {
       data: {
         ...data,
         slideCount: data.slides.length,
+        prompt:
+          data.prompt && data.prompt.trim().length > 0
+            ? data.prompt.trim()
+            : null,
         slides: {
           create: data.slides,
         },
@@ -151,6 +156,22 @@ export class SlideshowPostsService {
     });
 
     return this.getPostById(postId);
+  }
+
+  async updatePostPrompt(postId: string, prompt?: string | null) {
+    const normalizedPrompt =
+      prompt && prompt.trim().length > 0 ? prompt.trim() : null;
+
+    return this.prisma.slideshowPost.update({
+      where: { id: postId },
+      data: { prompt: normalizedPrompt },
+      include: {
+        slides: {
+          orderBy: { slideIndex: 'asc' },
+        },
+        account: true,
+      },
+    });
   }
 
   async updatePostStats(
