@@ -67,6 +67,11 @@ export class SlideshowLibraryController {
     return this.postsService.getAllPosts(limit);
   }
 
+  @Get('posts/:id')
+  async getPostById(@Param('id') id: string) {
+    return this.postsService.getPostById(id);
+  }
+
   @Get('accounts/:accountId/posts')
   async getPostsByAccount(
     @Param('accountId') accountId: string,

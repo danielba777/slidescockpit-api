@@ -85,6 +85,18 @@ export class SlideshowPostsService {
     });
   }
 
+  async getPostById(id: string) {
+    return this.prisma.slideshowPost.findUnique({
+      where: { id },
+      include: {
+        slides: {
+          orderBy: { slideIndex: 'asc' },
+        },
+        account: true,
+      },
+    });
+  }
+
   async updatePostStats(
     postId: string,
     stats: {
