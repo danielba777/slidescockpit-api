@@ -95,4 +95,12 @@ export class SlideshowLibraryController {
   async updatePostStats(@Param('postId') postId: string, @Body() stats: any) {
     return this.postsService.updatePostStats(postId, stats);
   }
+
+  @Put('posts/:postId/reorder')
+  async reorderPostSlides(
+    @Param('postId') postId: string,
+    @Body() body: { slideIds: string[] },
+  ) {
+    return this.postsService.updateSlideOrder(postId, body.slideIds);
+  }
 }

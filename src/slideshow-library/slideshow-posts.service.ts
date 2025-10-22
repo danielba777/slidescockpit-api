@@ -1,5 +1,5 @@
 // src/slideshow-library/slideshow-posts.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { randomUUID } from 'crypto';
@@ -95,6 +95,53 @@ export class SlideshowPostsService {
         account: true,
       },
     });
+  }
+
+  async updateSlideOrder(postId: string, slideIds: string[]) {
+    if (!slideIds || slideIds.length === 0) {
+      throw new BadRequestException('Slide order cannot be empty');
+    }
+
+    const slides = await this.prisma.slideshowSlide.findMany({
+      where: { postId },
+    });
+
+    if (slides.length === 0) {
+      throw new BadRequestException('Post not found or contains no slides');
+    }
+
+    if (slides.length !== slideIds.length) {
+      throw new BadRequestException('Slide list does not match existing slides');
+    }
+
+    const idsFromPost = new Set(slides.map((slide) => slide.id));
+    const providedIds = new Set(slideIds);
+
+    if (providedIds.size !== slideIds.length) {
+      throw new BadRequestException('Slide order contains duplicate slide ids');
+    }
+
+    for (const slideId of slideIds) {
+      if (!idsFromPost.has(slideId)) {
+        throw new BadRequestException('Slide does not belong to this post');
+      }
+    }
+
+    await this.prisma.$transaction(
+      slideIds.map((slideId, index) =>
+        this.prisma.slideshowSlide.update({
+          where: { id: slideId },
+          data: { slideIndex: index },
+        }),
+      ),
+    );
+
+    await this.prisma.slideshowPost.update({
+      where: { id: postId },
+      data: { slideCount: slideIds.length },
+    });
+
+    return this.getPostById(postId);
   }
 
   async updatePostStats(
