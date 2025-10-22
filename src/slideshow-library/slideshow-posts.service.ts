@@ -127,18 +127,27 @@ export class SlideshowPostsService {
       }
     }
 
-    await this.prisma.$transaction(
-      slideIds.map((slideId, index) =>
-        this.prisma.slideshowSlide.update({
+    await this.prisma.$transaction(async (tx) => {
+      const offset = slideIds.length;
+
+      for (const [index, slideId] of slideIds.entries()) {
+        await tx.slideshowSlide.update({
+          where: { id: slideId },
+          data: { slideIndex: index + offset },
+        });
+      }
+
+      for (const [index, slideId] of slideIds.entries()) {
+        await tx.slideshowSlide.update({
           where: { id: slideId },
           data: { slideIndex: index },
-        }),
-      ),
-    );
+        });
+      }
 
-    await this.prisma.slideshowPost.update({
-      where: { id: postId },
-      data: { slideCount: slideIds.length },
+      await tx.slideshowPost.update({
+        where: { id: postId },
+        data: { slideCount: slideIds.length },
+      });
     });
 
     return this.getPostById(postId);
