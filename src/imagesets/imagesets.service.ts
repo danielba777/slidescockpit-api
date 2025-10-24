@@ -8,6 +8,7 @@ import {
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import sharp from 'sharp';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class ImagesetsService {
@@ -115,7 +116,8 @@ export class ImagesetsService {
       // ---------- Aspect Ratio 2:3 Logic ENDE ----------
 
       const fileExtension = file.originalname.split('.').pop();
-      const filename = `${imageSet.slug}_${String(i + 1).padStart(3, '0')}.${fileExtension}`;
+      // Neuer Dateiname: slug + UUID + ext
+      const filename = `${imageSet.slug}_${randomUUID()}.${fileExtension}`;
       const s3Key = `imagesets/${imageSet.slug}/${filename}`;
 
       const uploadCommand = new PutObjectCommand({
