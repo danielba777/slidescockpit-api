@@ -7,6 +7,7 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
+import sharp from 'sharp';
 
 @Injectable()
 export class ImagesetsService {
@@ -86,42 +87,62 @@ export class ImagesetsService {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+
+      // ---------- Aspect Ratio 2:3 Logic START ----------
+      let image = sharp(file.buffer);
+      const metadata = await image.metadata();
+      const targetRatio = 2 / 3;
+      let processedBuffer = file.buffer;
+
+      if (metadata.width && metadata.height) {
+        const currentRatio = metadata.width / metadata.height;
+        if (Math.abs(currentRatio - targetRatio) > 0.01) {
+          let resizeWidth = metadata.width;
+          let resizeHeight = Math.round(metadata.width / targetRatio);
+          if (resizeHeight > metadata.height) {
+            resizeHeight = metadata.height;
+            resizeWidth = Math.round(metadata.height * targetRatio);
+          }
+          image = image.extract({
+            left: Math.floor((metadata.width - resizeWidth) / 2),
+            top: Math.floor((metadata.height - resizeHeight) / 2),
+            width: resizeWidth,
+            height: resizeHeight,
+          });
+          processedBuffer = await image.toBuffer();
+        }
+      }
+      // ---------- Aspect Ratio 2:3 Logic ENDE ----------
+
       const fileExtension = file.originalname.split('.').pop();
       const filename = `${imageSet.slug}_${String(i + 1).padStart(3, '0')}.${fileExtension}`;
       const s3Key = `imagesets/${imageSet.slug}/${filename}`;
 
-      // Upload zu Hetzner S3 (nutzt bestehende Konfiguration)
       const uploadCommand = new PutObjectCommand({
         Bucket: this.bucket,
         Key: s3Key,
-        Body: file.buffer,
+        Body: processedBuffer,
         ContentType: file.mimetype,
         ACL: 'public-read',
       });
 
       await this.s3.send(uploadCommand);
-
-      // URL generieren (nutzt bestehende publicBaseUrl)
       const imageUrl = `${this.publicBaseUrl}/${s3Key}`;
-
-      // In DB speichern
       const imageRecord = await this.prisma.imageSetImage.create({
         data: {
           imageSetId,
           filename,
           url: imageUrl,
           metadata: {
-            size: file.size,
+            size: processedBuffer.length,
             type: file.mimetype,
             uploadedAt: new Date().toISOString(),
           },
           order: i + 1,
         },
       });
-
       uploadedImages.push(imageRecord);
     }
-
     return uploadedImages;
   }
 
