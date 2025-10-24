@@ -93,9 +93,11 @@ export class ImagesetsService {
       let image = sharp(file.buffer);
       const metadata = await image.metadata();
       const targetRatio = 2 / 3;
-      let processedBuffer = file.buffer;
+      const targetWidth = 1080; // Canvas Standardbreite
+      const targetHeight = 1620; // Canvas Standardhöhe (2:3 Ratio)
 
       if (metadata.width && metadata.height) {
+        // Schritt 1: Crop auf 2:3 Aspect Ratio, falls nötig
         const currentRatio = metadata.width / metadata.height;
         if (Math.abs(currentRatio - targetRatio) > 0.01) {
           let resizeWidth = metadata.width;
@@ -110,9 +112,16 @@ export class ImagesetsService {
             width: resizeWidth,
             height: resizeHeight,
           });
-          processedBuffer = await image.toBuffer();
         }
+
+        // Schritt 2: Skaliere auf Standardgröße (1080x1620)
+        image = image.resize(targetWidth, targetHeight, {
+          fit: 'cover',
+          position: 'centre',
+        });
       }
+
+      const processedBuffer = await image.toBuffer();
       // ---------- Aspect Ratio 2:3 Logic ENDE ----------
 
       const fileExtension = file.originalname.split('.').pop();
