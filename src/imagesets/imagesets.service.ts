@@ -37,6 +37,7 @@ export class ImagesetsService {
     name: string;
     description?: string;
     category: string;
+    parentId?: string;
   }) {
     const slug = data.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
 
@@ -46,6 +47,7 @@ export class ImagesetsService {
         slug,
         description: data.description,
         category: data.category,
+        parentId: data.parentId,
       },
     });
   }
@@ -56,8 +58,15 @@ export class ImagesetsService {
         images: {
           orderBy: { order: 'asc' },
         },
+        children: {
+          include: {
+            _count: {
+              select: { images: true, children: true },
+            },
+          },
+        },
         _count: {
-          select: { images: true },
+          select: { images: true, children: true },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -70,6 +79,17 @@ export class ImagesetsService {
       include: {
         images: {
           orderBy: { order: 'asc' },
+        },
+        parent: true,
+        children: {
+          include: {
+            _count: {
+              select: { images: true, children: true },
+            },
+          },
+        },
+        _count: {
+          select: { images: true, children: true },
         },
       },
     });
@@ -205,6 +225,7 @@ export class ImagesetsService {
       description?: string;
       category?: string;
       isActive?: boolean;
+      parentId?: string;
     },
   ) {
     const updateData: any = { ...data };
