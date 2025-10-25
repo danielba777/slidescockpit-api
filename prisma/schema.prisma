@@ -72,8 +72,6 @@ model ImageSet {
   id          String          @id @default(cuid())
   name        String
   slug        String          @unique
-  description String?
-  category    String
   isActive    Boolean         @default(true)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -83,7 +81,6 @@ model ImageSet {
   images      ImageSetImage[]
 
   @@index([slug])
-  @@index([category])
   @@index([isActive])
   @@index([parentId])
 }

@@ -33,20 +33,13 @@ export class ImagesetsService {
     private filesService: FilesService,
   ) {}
 
-  async createImageSet(data: {
-    name: string;
-    description?: string;
-    category: string;
-    parentId?: string;
-  }) {
+  async createImageSet(data: { name: string; parentId?: string }) {
     const slug = data.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
 
     return this.prisma.imageSet.create({
       data: {
         name: data.name,
         slug,
-        description: data.description,
-        category: data.category,
         parentId: data.parentId,
       },
     });
@@ -222,8 +215,6 @@ export class ImagesetsService {
     id: string,
     data: {
       name?: string;
-      description?: string;
-      category?: string;
       isActive?: boolean;
       parentId?: string;
     },
