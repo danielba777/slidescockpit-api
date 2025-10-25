@@ -53,6 +53,9 @@ export class ImagesetsService {
         },
         children: {
           include: {
+            images: {
+              orderBy: { order: 'asc' },
+            },
             _count: {
               select: { images: true, children: true },
             },
@@ -198,8 +201,35 @@ export class ImagesetsService {
   }
 
   async getRandomImageFromSet(imageSetId: string) {
+    // Check if this imageSet has children
+    const imageSet = await this.prisma.imageSet.findUnique({
+      where: { id: imageSetId },
+      include: {
+        children: {
+          select: { id: true },
+        },
+      },
+    });
+
+    if (!imageSet) {
+      return null;
+    }
+
+    let imageSetIds = [imageSetId];
+
+    // If the imageSet has children, collect images from all children
+    if (imageSet.children && imageSet.children.length > 0) {
+      const childIds = imageSet.children.map((child) => child.id);
+      imageSetIds = [imageSetId, ...childIds];
+    }
+
+    // Get all images from the imageSet and its children
     const images = await this.prisma.imageSetImage.findMany({
-      where: { imageSetId },
+      where: {
+        imageSetId: {
+          in: imageSetIds,
+        },
+      },
       orderBy: { order: 'asc' },
     });
 
