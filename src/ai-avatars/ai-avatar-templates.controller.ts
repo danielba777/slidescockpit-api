@@ -29,7 +29,6 @@ export class AiAvatarTemplatesController {
   createTemplate(
     @Body()
     body: {
-      name: string;
       prompt: string;
       imageUrl: string;
       imageKey: string;
@@ -48,14 +47,11 @@ export class AiAvatarTemplatesController {
 
   @Post('templates/upload-image')
   @UseInterceptors(FilesInterceptor('image', 1))
-  async uploadImage(
-    @UploadedFiles() files: Express.Multer.File[],
-    @Body('name') name?: string,
-  ) {
+  async uploadImage(@UploadedFiles() files: Express.Multer.File[]) {
     const file = files?.[0];
     if (!file) {
       throw new BadRequestException('No image uploaded');
     }
-    return this.templatesService.uploadTemplateImage(file, name);
+    return this.templatesService.uploadTemplateImage(file);
   }
 }

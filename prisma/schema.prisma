@@ -101,8 +101,6 @@ model ImageSetImage {
 
 model AiAvatarTemplate {
   id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
   prompt    String   @db.Text
   imageUrl  String
   imageKey  String

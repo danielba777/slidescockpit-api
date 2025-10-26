@@ -16,7 +16,6 @@ import { randomUUID } from 'crypto';
 import { Express } from 'express';
 
 interface CreateTemplateInput {
-  name: string;
   prompt: string;
   imageUrl: string;
   imageKey: string;
@@ -52,19 +51,15 @@ export class AiAvatarTemplatesService {
   }
 
   async createTemplate(input: CreateTemplateInput) {
-    if (!input.name?.trim() || !input.prompt?.trim()) {
-      throw new BadRequestException('Name and prompt are required');
+    if (!input.prompt?.trim()) {
+      throw new BadRequestException('Prompt is required');
     }
     if (!input.imageUrl || !input.imageKey) {
       throw new BadRequestException('Image information missing');
     }
 
-    const slug = await this.generateUniqueSlug(input.name.trim());
-
     return this.prisma.aiAvatarTemplate.create({
       data: {
-        name: input.name.trim(),
-        slug,
         prompt: input.prompt.trim(),
         imageUrl: input.imageUrl,
         imageKey: input.imageKey,
@@ -97,16 +92,13 @@ export class AiAvatarTemplatesService {
 
   async uploadTemplateImage(
     file: Express.Multer.File,
-    nameHint?: string,
   ): Promise<{ url: string; key: string; contentType: string }> {
     if (!file) {
       throw new BadRequestException('Image file missing');
     }
 
-    const slug =
-      (nameHint ? this.slugify(nameHint) : 'ai-avatar') || 'ai-avatar';
     const uniqueId = randomUUID();
-    const key = `ai-avatars/templates/${slug}-${uniqueId}.webp`;
+    const key = `ai-avatars/templates/${uniqueId}.webp`;
 
     const processedBuffer = await sharp(file.buffer)
       .resize(1024, 1024, {
@@ -131,32 +123,6 @@ export class AiAvatarTemplatesService {
       key,
       contentType: 'image/webp',
     };
-  }
-
-  private async generateUniqueSlug(baseName: string): Promise<string> {
-    const base = this.slugify(baseName);
-    let slug = base;
-    let suffix = 1;
-
-    while (true) {
-      const existing = await this.prisma.aiAvatarTemplate.findUnique({
-        where: { slug },
-        select: { id: true },
-      });
-      if (!existing) {
-        return slug;
-      }
-      slug = `${base}-${suffix++}`;
-    }
-  }
-
-  private slugify(value: string): string {
-    return value
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)+/g, '')
-      .substring(0, 60);
   }
 
   private requireEnv(name: string): string {
