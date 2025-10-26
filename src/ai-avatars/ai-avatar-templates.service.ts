@@ -100,8 +100,36 @@ export class AiAvatarTemplatesService {
     const uniqueId = randomUUID();
     const key = `ai-avatars/templates/${uniqueId}.webp`;
 
-    const processedBuffer = await sharp(file.buffer)
-      .resize(1024, 1024, {
+    const targetWidth = 1080;
+    const targetHeight = 1620; // 2:3 aspect ratio
+    const targetRatio = targetWidth / targetHeight;
+
+    let image = sharp(file.buffer);
+    const metadata = await image.metadata();
+
+    if (metadata.width && metadata.height) {
+      const currentRatio = metadata.width / metadata.height;
+
+      if (Math.abs(currentRatio - targetRatio) > 0.005) {
+        let cropWidth = metadata.width;
+        let cropHeight = Math.round(metadata.width / targetRatio);
+
+        if (cropHeight > metadata.height) {
+          cropHeight = metadata.height;
+          cropWidth = Math.round(metadata.height * targetRatio);
+        }
+
+        image = image.extract({
+          left: Math.floor((metadata.width - cropWidth) / 2),
+          top: Math.floor((metadata.height - cropHeight) / 2),
+          width: cropWidth,
+          height: cropHeight,
+        });
+      }
+    }
+
+    const processedBuffer = await image
+      .resize(targetWidth, targetHeight, {
         fit: 'cover',
         position: 'centre',
       })
