@@ -10,6 +10,7 @@ import { SlideshowLibraryModule } from './slideshow-library/slideshow-library.mo
 import { TikTokModule } from './integrations/tiktok/tiktok.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { QueueModule } from './queue/queue.module';
+import { AiAvatarTemplatesModule } from './ai-avatars/ai-avatar-templates.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { QueueModule } from './queue/queue.module';
     SlideshowLibraryModule,
     PrismaModule,
     QueueModule,
+    AiAvatarTemplatesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
