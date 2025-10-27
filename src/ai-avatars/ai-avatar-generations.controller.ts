@@ -28,6 +28,7 @@ export class AiAvatarGenerationsController {
       prompt?: string;
       sourceUrl?: string;
       rawImageUrl?: string | null;
+      jobId?: string | null;
     },
   ) {
     const resolvedUserId = this.ensureUserId(userId);
@@ -43,6 +44,7 @@ export class AiAvatarGenerationsController {
       prompt: body.prompt,
       sourceUrl: body.sourceUrl,
       rawImageUrl: body.rawImageUrl,
+      jobId: body.jobId ?? null,
     });
   }
 

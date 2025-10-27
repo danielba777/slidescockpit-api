@@ -13,6 +13,7 @@ interface SaveGenerationInput {
   prompt: string;
   sourceUrl: string;
   rawImageUrl?: string | null;
+  jobId?: string | null;
 }
 
 @Injectable()
@@ -90,6 +91,7 @@ export class AiAvatarGenerationsService {
         imageUrl: `${this.publicBaseUrl}/${objectKey}`,
         imageKey: objectKey,
         rawImageUrl: input.rawImageUrl ?? sourceUrl,
+        jobId: input.jobId ?? null,
       },
     });
 
@@ -186,6 +188,7 @@ export class AiAvatarGenerationsService {
     imageUrl: string;
     rawImageUrl: string | null;
     createdAt: Date;
+    jobId?: string | null;
   }) {
     return {
       id: generation.id,
@@ -193,6 +196,7 @@ export class AiAvatarGenerationsService {
       imageUrl: generation.imageUrl,
       rawImageUrl: generation.rawImageUrl,
       createdAt: generation.createdAt.toISOString(),
+      jobId: generation.jobId ?? null,
     };
   }
 }
