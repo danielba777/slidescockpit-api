@@ -9,6 +9,7 @@ import {
   Body,
   UseInterceptors,
   UploadedFiles,
+  Headers,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ImagesetsService } from './imagesets.service';
@@ -18,13 +19,16 @@ export class ImagesetsController {
   constructor(private readonly imagesetsService: ImagesetsService) {}
 
   @Get()
-  async getAllImageSets() {
-    return this.imagesetsService.getAllImageSets();
+  async getAllImageSets(@Headers('x-user-id') userId?: string) {
+    return this.imagesetsService.getAllImageSets(userId);
   }
 
   @Get(':id')
-  async getImageSetById(@Param('id') id: string) {
-    return this.imagesetsService.getImageSetById(id);
+  async getImageSetById(
+    @Param('id') id: string,
+    @Headers('x-user-id') userId?: string,
+  ) {
+    return this.imagesetsService.getImageSetById(id, userId);
   }
 
   @Post()
@@ -44,8 +48,14 @@ export class ImagesetsController {
   }
 
   @Get(':id/random-image')
-  async getRandomImage(@Param('id') imageSetId: string) {
-    const image = await this.imagesetsService.getRandomImageFromSet(imageSetId);
+  async getRandomImage(
+    @Param('id') imageSetId: string,
+    @Headers('x-user-id') userId?: string,
+  ) {
+    const image = await this.imagesetsService.getRandomImageFromSet(
+      imageSetId,
+      userId,
+    );
     if (!image) {
       return { success: false, error: 'No images found in this set' };
     }
