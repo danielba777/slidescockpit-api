@@ -14,9 +14,9 @@ import {
 import sharp from 'sharp';
 import { randomUUID } from 'crypto';
 
-@Injectable()
 const AI_AVATAR_SET_PREFIX = 'ai-avatars-';
 
+@Injectable()
 export class ImagesetsService {
   private readonly bucket =
     process.env.HCLOUD_S3_BUCKET ?? 'slidescockpit-files';
