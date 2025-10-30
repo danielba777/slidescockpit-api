@@ -33,6 +33,89 @@ export class ImagesetsService {
     private filesService: FilesService,
   ) {}
 
+  async createImagesFromExternalUrls(
+    imageSetId: string,
+    items: { url: string; filename?: string; originalFilename?: string }[],
+  ) {
+    const imageSet = await this.prisma.imageSet.findUnique({ where: { id: imageSetId } });
+    if (!imageSet) throw new Error('ImageSet not found');
+
+    const existingCount = await this.prisma.imageSetImage.count({ where: { imageSetId } });
+    const created = [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (!it?.url) continue;
+      const provided =
+        it.filename || it.originalFilename || `image_${imageSet.slug}_${Date.now()}_${i}.jpg`;
+      const rec = await this.prisma.imageSetImage.create({
+        data: {
+          imageSetId,
+          filename: provided,
+          url: it.url, // unverändert übernehmen
+          metadata: {
+            original: true,
+            source: 'external',
+            providedFilename: provided,
+            uploadedAt: new Date().toISOString(),
+          },
+          order: existingCount + 1 + i,
+        },
+      });
+      created.push(rec);
+    }
+    return created;
+  }
+
+
+  async uploadOriginalImagesToSet(
+    imageSetId: string,
+    files: Express.Multer.File[],
+  ) {
+    const imageSet = await this.prisma.imageSet.findUnique({
+      where: { id: imageSetId },
+    });
+    if (!imageSet) {
+      throw new Error('ImageSet not found');
+    }
+
+    const uploadedImages = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const fileExtension = (file.originalname.split('.').pop() || 'bin').toLowerCase();
+      const filename = `${imageSet.slug}_${randomUUID()}.${fileExtension}`;
+      const s3Key = `imagesets/${imageSet.slug}/original/${filename}`;
+
+      // ⚠️ Kein sharp / keine Aspect-Ratio-Anpassung:
+      const uploadCommand = new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: s3Key,
+        Body: file.buffer,
+        ContentType: file.mimetype || 'application/octet-stream',
+        ACL: 'public-read',
+      });
+      await this.s3.send(uploadCommand);
+
+      const imageUrl = `${this.publicBaseUrl}/${s3Key}`;
+      const imageRecord = await this.prisma.imageSetImage.create({
+        data: {
+          imageSetId,
+          filename,
+          url: imageUrl,
+          metadata: {
+            size: file.buffer.length,
+            type: file.mimetype || 'application/octet-stream',
+            uploadedAt: new Date().toISOString(),
+            original: true,
+          },
+          order: i + 1,
+        },
+      });
+      uploadedImages.push(imageRecord);
+    }
+    return uploadedImages;
+  }
+
+
   async createImageSet(data: { name: string; parentId?: string }) {
     const slug = data.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
 
