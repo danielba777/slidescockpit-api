@@ -1,5 +1,9 @@
 // src/imagesets/imagesets.service.ts
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { FilesService } from '../files/files.service';
 import {
@@ -9,6 +13,8 @@ import {
 } from '@aws-sdk/client-s3';
 import sharp from 'sharp';
 import { randomUUID } from 'crypto';
+
+const AI_AVATAR_SET_PREFIX = 'ai-avatars-';
 
 @Injectable()
 export class ImagesetsService {
@@ -128,31 +134,54 @@ export class ImagesetsService {
     });
   }
 
-  async getAllImageSets() {
-    return this.prisma.imageSet.findMany({
-      include: {
-        images: {
-          orderBy: { order: 'asc' },
-        },
-        children: {
-          include: {
-            images: {
-              orderBy: { order: 'asc' },
-            },
-            _count: {
-              select: { images: true, children: true },
+  async getAllImageSets(userId?: string) {
+    const [imageSets, aiAvatarSet] = await Promise.all([
+      this.prisma.imageSet.findMany({
+        include: {
+          images: {
+            orderBy: { order: 'asc' },
+          },
+          children: {
+            include: {
+              images: {
+                orderBy: { order: 'asc' },
+              },
+              _count: {
+                select: { images: true, children: true },
+              },
             },
           },
+          _count: {
+            select: { images: true, children: true },
+          },
         },
-        _count: {
-          select: { images: true, children: true },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+      }),
+      userId ? this.buildAiAvatarImageSet(userId) : Promise.resolve(null),
+    ]);
+
+    if (aiAvatarSet) {
+      // Ensure the personal collection appears in the user's section by
+      // placing it at the front of the list.
+      return [aiAvatarSet, ...imageSets];
+    }
+
+    return imageSets;
   }
 
-  async getImageSetById(id: string) {
+  async getImageSetById(id: string, userId?: string) {
+    if (id.startsWith(AI_AVATAR_SET_PREFIX)) {
+      const ownerId = id.substring(AI_AVATAR_SET_PREFIX.length);
+      if (!userId || ownerId !== userId) {
+        throw new NotFoundException('Image set not found');
+      }
+      const aiAvatarSet = await this.buildAiAvatarImageSet(userId);
+      if (!aiAvatarSet) {
+        throw new NotFoundException('Image set not found');
+      }
+      return aiAvatarSet;
+    }
+
     return this.prisma.imageSet.findUnique({
       where: { id },
       include: {
@@ -283,7 +312,28 @@ export class ImagesetsService {
     return { success: true };
   }
 
-  async getRandomImageFromSet(imageSetId: string) {
+  async getRandomImageFromSet(imageSetId: string, userId?: string) {
+    if (imageSetId.startsWith(AI_AVATAR_SET_PREFIX)) {
+      const ownerId = imageSetId.substring(AI_AVATAR_SET_PREFIX.length);
+      if (!userId || ownerId !== userId) {
+        return null;
+      }
+
+      const avatars = await this.prisma.aiAvatarGeneration.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, imageUrl: true },
+      });
+
+      if (!avatars.length) {
+        return null;
+      }
+
+      const randomIndex = Math.floor(Math.random() * avatars.length);
+      const randomAvatar = avatars[randomIndex];
+      return { id: randomAvatar.id, url: randomAvatar.imageUrl };
+    }
+
     // Check if this imageSet has children
     const imageSet = await this.prisma.imageSet.findUnique({
       where: { id: imageSetId },
@@ -322,6 +372,35 @@ export class ImagesetsService {
 
     const randomIndex = Math.floor(Math.random() * images.length);
     return images[randomIndex];
+  }
+
+  private async buildAiAvatarImageSet(userId: string) {
+    const avatars = await this.prisma.aiAvatarGeneration.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, imageUrl: true },
+      take: 60,
+    });
+
+    const images = avatars.map((avatar) => ({
+      id: avatar.id,
+      url: avatar.imageUrl,
+    }));
+
+    return {
+      id: `${AI_AVATAR_SET_PREFIX}${userId}`,
+      name: 'AI Avatars',
+      category: 'personal',
+      isOwnedByUser: true,
+      slug: `${AI_AVATAR_SET_PREFIX}${userId}`,
+      parentId: null,
+      images,
+      children: [],
+      _count: {
+        images: images.length,
+        children: 0,
+      },
+    };
   }
 
   async updateImageSet(
