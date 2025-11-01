@@ -31,6 +31,9 @@ export class AiAvatarGenerationJobsService {
       throw new BadRequestException('Prompt is required');
     }
 
+    // Ensure user exists in database
+    await this.ensureUserExists(input.userId);
+
     const expectedImages =
       typeof input.expectedImages === 'number' && input.expectedImages > 0
         ? input.expectedImages
@@ -51,6 +54,9 @@ export class AiAvatarGenerationJobsService {
     if (!userId?.trim()) {
       throw new BadRequestException('User id is required');
     }
+
+    // Ensure user exists in database
+    await this.ensureUserExists(userId);
 
     const jobs = await this.prisma.aiAvatarGenerationJob.findMany({
       where: {
@@ -82,6 +88,21 @@ export class AiAvatarGenerationJobsService {
     });
 
     return this.serializeJob(update);
+  }
+
+  private async ensureUserExists(userId: string) {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!existingUser) {
+      // Create user in database with minimal information
+      await this.prisma.user.create({
+        data: {
+          id: userId,
+        },
+      });
+    }
   }
 
   private serializeJob(job: {
