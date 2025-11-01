@@ -16,6 +16,14 @@ interface SaveGenerationInput {
   jobId?: string | null;
 }
 
+interface SaveGenerationFromBufferInput {
+  userId: string;
+  prompt: string;
+  imageBuffer: Buffer;
+  rawImageUrl?: string | null;
+  jobId?: string | null;
+}
+
 @Injectable()
 export class AiAvatarGenerationsService {
   private readonly bucket =
@@ -91,6 +99,48 @@ export class AiAvatarGenerationsService {
         imageUrl: `${this.publicBaseUrl}/${objectKey}`,
         imageKey: objectKey,
         rawImageUrl: input.rawImageUrl ?? sourceUrl,
+        jobId: input.jobId ?? null,
+      },
+    });
+
+    return this.serializeGeneration(generation);
+  }
+
+  async saveGenerationFromBuffer(input: SaveGenerationFromBufferInput) {
+    if (!input.userId?.trim()) {
+      throw new BadRequestException('User id is required');
+    }
+
+    if (!input.prompt?.trim()) {
+      throw new BadRequestException('Prompt is required');
+    }
+
+    if (!input.imageBuffer || input.imageBuffer.length === 0) {
+      throw new BadRequestException('Image buffer is required');
+    }
+
+    const processedBuffer = await this.normalizeImageBuffer(input.imageBuffer);
+
+    const uniqueId = randomUUID();
+    const objectKey = `ai-avatars/users/${input.userId}/${uniqueId}.webp`;
+
+    const uploadCommand = new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: objectKey,
+      Body: processedBuffer,
+      ContentType: 'image/webp',
+      ACL: 'public-read',
+    });
+
+    await this.s3.send(uploadCommand);
+
+    const generation = await this.prisma.aiAvatarGeneration.create({
+      data: {
+        userId: input.userId,
+        prompt: input.prompt.trim(),
+        imageUrl: `${this.publicBaseUrl}/${objectKey}`,
+        imageKey: objectKey,
+        rawImageUrl: input.rawImageUrl ?? null,
         jobId: input.jobId ?? null,
       },
     });

@@ -5,7 +5,10 @@ import {
   Get,
   Headers,
   Post,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { AiAvatarGenerationsService } from './ai-avatar-generations.service';
 
 @Controller('ai-avatars')
@@ -21,30 +24,28 @@ export class AiAvatarGenerationsController {
   }
 
   @Post('generations')
+  @UseInterceptors(FileInterceptor('image'))
   async createGeneration(
     @Headers('x-user-id') userId: string | undefined,
-    @Body()
-    body: {
-      prompt?: string;
-      sourceUrl?: string;
-      rawImageUrl?: string | null;
-      jobId?: string | null;
-    },
+    @UploadedFile() image: Express.Multer.File,
+    @Body() body: { prompt?: string; rawImageUrl?: string; jobId?: string },
   ) {
     const resolvedUserId = this.ensureUserId(userId);
+
     if (!body?.prompt) {
       throw new BadRequestException('Prompt is required');
     }
-    if (!body?.sourceUrl) {
-      throw new BadRequestException('Source image URL is required');
+
+    if (!image) {
+      throw new BadRequestException('Image file is required');
     }
 
-    return this.generationsService.saveGeneration({
+    return this.generationsService.saveGenerationFromBuffer({
       userId: resolvedUserId,
       prompt: body.prompt,
-      sourceUrl: body.sourceUrl,
-      rawImageUrl: body.rawImageUrl,
-      jobId: body.jobId ?? null,
+      imageBuffer: image.buffer,
+      rawImageUrl: body.rawImageUrl || null,
+      jobId: body.jobId || null,
     });
   }
 
