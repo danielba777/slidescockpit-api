@@ -31,6 +31,7 @@ export class SlideshowPostsService {
     accountId: string;
     postId: string;
     caption?: string;
+    categories?: string[];
     prompt?: string;
     likeCount?: number;
     viewCount?: number;
@@ -53,6 +54,10 @@ export class SlideshowPostsService {
     return this.prisma.slideshowPost.create({
       data: {
         ...data,
+        categories:
+          data.categories && data.categories.length > 0
+            ? this.normalizeCategories(data.categories)
+            : [],
         slideCount: data.slides.length,
         prompt:
           data.prompt && data.prompt.trim().length > 0
@@ -174,6 +179,23 @@ export class SlideshowPostsService {
     });
   }
 
+  async updatePostCategories(postId: string, categories?: string[] | null) {
+    const normalized = categories && categories.length
+      ? this.normalizeCategories(categories)
+      : [];
+
+    return this.prisma.slideshowPost.update({
+      where: { id: postId },
+      data: { categories: normalized },
+      include: {
+        slides: {
+          orderBy: { slideIndex: 'asc' },
+        },
+        account: true,
+      },
+    });
+  }
+
   async updatePostStats(
     postId: string,
     stats: {
@@ -234,5 +256,24 @@ export class SlideshowPostsService {
       throw new Error(`${name} environment variable is not configured`);
     }
     return value;
+  }
+
+  private normalizeCategories(categories: string[]): string[] {
+    const normalized = categories
+      .map((category) => category.trim())
+      .filter((category) => category.length > 0);
+
+    const unique = Array.from(new Set(normalized.map((c) => c.toLowerCase())));
+
+    // Preserve original casing of first occurrence by mapping lowercase back
+    const lowerToOriginal = new Map<string, string>();
+    for (const category of normalized) {
+      const key = category.toLowerCase();
+      if (!lowerToOriginal.has(key)) {
+        lowerToOriginal.set(key, category);
+      }
+    }
+
+    return unique.map((key) => lowerToOriginal.get(key) ?? key);
   }
 }

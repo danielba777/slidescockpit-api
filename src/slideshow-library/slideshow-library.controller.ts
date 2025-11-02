@@ -111,4 +111,12 @@ export class SlideshowLibraryController {
   ) {
     return this.postsService.updatePostPrompt(id, body.prompt ?? null);
   }
+
+  @Put('posts/:id/categories')
+  async updatePostCategories(
+    @Param('id') id: string,
+    @Body() body: { categories?: string[] },
+  ) {
+    return this.postsService.updatePostCategories(id, body.categories ?? []);
+  }
 }

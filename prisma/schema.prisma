@@ -181,6 +181,7 @@ model SlideshowPost {
   accountId    String
   postId       String           @unique
   caption      String?
+  categories   String[]         @default([])
   likeCount    Int              @default(0)
   viewCount    Int              @default(0)
   commentCount Int              @default(0)
