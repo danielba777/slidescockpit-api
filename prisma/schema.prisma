@@ -232,3 +232,19 @@ enum PostStatus {
   FAILED
   CANCELLED
 }
+
+model LandingPageTheme {
+  id          String   @id @default(cuid())
+  category    String   @unique
+  heroTitle   String
+  heroSubtitle String?
+  description String?
+  metaTitle   String?
+  metaDescription String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([isActive])
+}
