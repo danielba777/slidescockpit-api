@@ -63,8 +63,16 @@ export class SlideshowLibraryController {
 
   // Posts
   @Get('posts')
-  async getAllPosts(@Query('limit') limit?: number) {
-    return this.postsService.getAllPosts(limit);
+  async getAllPosts(
+    @Query('limit') limit?: number,
+    @Query('category') category?: string
+  ) {
+    return this.postsService.getAllPosts(limit, category);
+  }
+
+  @Get('posts/categories')
+  async getAllCategories() {
+    return this.postsService.getAllCategories();
   }
 
   @Get('posts/:id')

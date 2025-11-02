@@ -51,41 +51,55 @@ export class SlideshowPostsService {
       duration?: number;
     }>;
   }) {
-    return this.prisma.slideshowPost.create({
+    const post = await this.prisma.slideshowPost.create({
       data: {
-        ...data,
-        categories:
-          data.categories && data.categories.length > 0
-            ? this.normalizeCategories(data.categories)
-            : [],
+        accountId: data.accountId,
+        postId: data.postId,
+        caption: data.caption,
+        categories: data.categories ?? [],
+        prompt: data.prompt,
+        likeCount: data.likeCount ?? 0,
+        viewCount: data.viewCount ?? 0,
+        commentCount: data.commentCount ?? 0,
+        shareCount: data.shareCount ?? 0,
+        publishedAt: data.publishedAt,
+        createdAt: data.createdAt,
+        duration: data.duration,
         slideCount: data.slides.length,
-        prompt:
-          data.prompt && data.prompt.trim().length > 0
-            ? data.prompt.trim()
-            : null,
         slides: {
-          create: data.slides,
+          create: data.slides.map((slide) => ({
+            slideIndex: slide.slideIndex,
+            imageUrl: slide.imageUrl,
+            textContent: slide.textContent,
+            backgroundColor: slide.backgroundColor,
+            textPosition: slide.textPosition,
+            textColor: slide.textColor,
+            fontSize: slide.fontSize,
+            duration: slide.duration,
+          })),
         },
       },
-      include: {
-        slides: true,
-        account: true,
-      },
+      include: { slides: true },
     });
+
+    return post;
   }
 
   async getPostsByAccount(accountId: string, limit = 20) {
     return this.prisma.slideshowPost.findMany({
       where: { accountId, isActive: true },
-      include: { slides: true },
+      include: { slides: true, account: true },
       orderBy: { publishedAt: 'desc' },
       take: limit,
     });
   }
 
-  async getAllPosts(limit = 50) {
+  async getAllPosts(limit = 50, category?: string) {
     return this.prisma.slideshowPost.findMany({
-      where: { isActive: true },
+      where: { 
+        isActive: true,
+        ...(category && { categories: { has: category } })
+      },
       include: {
         slides: true,
         account: true,
@@ -99,181 +113,124 @@ export class SlideshowPostsService {
     return this.prisma.slideshowPost.findUnique({
       where: { id },
       include: {
-        slides: {
-          orderBy: { slideIndex: 'asc' },
-        },
+        slides: { orderBy: { slideIndex: 'asc' } },
         account: true,
       },
     });
   }
 
-  async updateSlideOrder(postId: string, slideIds: string[]) {
-    if (!slideIds || slideIds.length === 0) {
-      throw new BadRequestException('Slide order cannot be empty');
-    }
-
-    const slides = await this.prisma.slideshowSlide.findMany({
-      where: { postId },
+  async getAllCategories() {
+    const posts = await this.prisma.slideshowPost.findMany({
+      where: { isActive: true },
+      select: { categories: true },
     });
 
-    if (slides.length === 0) {
-      throw new BadRequestException('Post not found or contains no slides');
-    }
-
-    if (slides.length !== slideIds.length) {
-      throw new BadRequestException('Slide list does not match existing slides');
-    }
-
-    const idsFromPost = new Set(slides.map((slide) => slide.id));
-    const providedIds = new Set(slideIds);
-
-    if (providedIds.size !== slideIds.length) {
-      throw new BadRequestException('Slide order contains duplicate slide ids');
-    }
-
-    for (const slideId of slideIds) {
-      if (!idsFromPost.has(slideId)) {
-        throw new BadRequestException('Slide does not belong to this post');
-      }
-    }
-
-    await this.prisma.$transaction(async (tx) => {
-      const offset = slideIds.length;
-
-      for (const [index, slideId] of slideIds.entries()) {
-        await tx.slideshowSlide.update({
-          where: { id: slideId },
-          data: { slideIndex: index + offset },
-        });
-      }
-
-      for (const [index, slideId] of slideIds.entries()) {
-        await tx.slideshowSlide.update({
-          where: { id: slideId },
-          data: { slideIndex: index },
-        });
-      }
-
-      await tx.slideshowPost.update({
-        where: { id: postId },
-        data: { slideCount: slideIds.length },
-      });
+    const categoriesSet = new Set<string>();
+    posts.forEach((post) => {
+      post.categories.forEach((category) => categoriesSet.add(category));
     });
 
-    return this.getPostById(postId);
+    return Array.from(categoriesSet).sort();
   }
 
-  async updatePostPrompt(postId: string, prompt?: string | null) {
-    const normalizedPrompt =
-      prompt && prompt.trim().length > 0 ? prompt.trim() : null;
-
-    return this.prisma.slideshowPost.update({
-      where: { id: postId },
-      data: { prompt: normalizedPrompt },
-      include: {
-        slides: {
-          orderBy: { slideIndex: 'asc' },
-        },
-        account: true,
-      },
+  async deletePost(id: string) {
+    return this.prisma.slideshowPost.delete({
+      where: { id },
     });
   }
 
-  async updatePostCategories(postId: string, categories?: string[] | null) {
-    const normalized = categories && categories.length
-      ? this.normalizeCategories(categories)
-      : [];
-
-    return this.prisma.slideshowPost.update({
-      where: { id: postId },
-      data: { categories: normalized },
-      include: {
-        slides: {
-          orderBy: { slideIndex: 'asc' },
-        },
-        account: true,
-      },
-    });
-  }
-
-  async updatePostStats(
-    postId: string,
-    stats: {
+  async updatePost(
+    id: string,
+    data: {
+      caption?: string;
+      categories?: string[];
       likeCount?: number;
       viewCount?: number;
       commentCount?: number;
       shareCount?: number;
+      isActive?: boolean;
+      prompt?: string;
     },
   ) {
     return this.prisma.slideshowPost.update({
-      where: { postId },
-      data: {
-        ...stats,
-        lastSyncedAt: new Date(),
+      where: { id },
+      data,
+      include: {
+        slides: { orderBy: { slideIndex: 'asc' } },
+        account: true,
       },
     });
   }
 
-  async uploadSlides(files: Express.Multer.File[]) {
-    if (!files || files.length === 0) {
-      return [];
-    }
+  async uploadSlideImage(file: Express.Multer.File): Promise<string> {
+    const fileExtension = file.originalname.split('.').pop();
+    const key = `slideshow-slides/${randomUUID()}.${fileExtension}`;
 
-    const uploadedSlides = [];
-
-    for (let index = 0; index < files.length; index++) {
-      const file = files[index];
-      const extension =
-        file.originalname.split('.').pop()?.toLowerCase() ?? 'jpg';
-      const uniqueId = randomUUID();
-      const filename = `${Date.now()}_${uniqueId}.${extension}`;
-      const s3Key = `slideshow-library/posts/${filename}`;
-
-      const uploadCommand = new PutObjectCommand({
+    await this.s3.send(
+      new PutObjectCommand({
         Bucket: this.bucket,
-        Key: s3Key,
+        Key: key,
         Body: file.buffer,
         ContentType: file.mimetype,
         ACL: 'public-read',
-      });
+      }),
+    );
 
-      await this.s3.send(uploadCommand);
-
-      uploadedSlides.push({
-        url: `${this.publicBaseUrl}/${s3Key}`,
-        filename,
-        mimeType: file.mimetype,
-        size: file.size,
-      });
-    }
-
-    return uploadedSlides;
+    return `${this.publicBaseUrl}/${key}`;
   }
 
-  private requireEnv(name: string): string {
-    const value = process.env[name];
-    if (!value || value.trim().length === 0) {
-      throw new Error(`${name} environment variable is not configured`);
+  async createPostWithUploadedImages(
+    data: {
+      accountId: string;
+      postId: string;
+      caption?: string;
+      categories?: string[];
+      prompt?: string;
+      likeCount?: number;
+      viewCount?: number;
+      commentCount?: number;
+      shareCount?: number;
+      publishedAt: Date;
+      createdAt: Date;
+      duration?: number;
+      slides: Array<{
+        slideIndex: number;
+        textContent?: string;
+        backgroundColor?: string;
+        textPosition?: string;
+        textColor?: string;
+        fontSize?: number;
+        duration?: number;
+      }>;
+    },
+    files: Express.Multer.File[],
+  ) {
+    if (files.length !== data.slides.length) {
+      throw new BadRequestException(
+        'Number of files must match number of slides',
+      );
+    }
+
+    const uploadedUrls = await Promise.all(
+      files.map((file) => this.uploadSlideImage(file)),
+    );
+
+    const slidesWithUrls = data.slides.map((slide, index) => ({
+      ...slide,
+      imageUrl: uploadedUrls[index],
+    }));
+
+    return this.createPost({
+      ...data,
+      slides: slidesWithUrls,
+    });
+  }
+
+  private requireEnv(key: string): string {
+    const value = process.env[key];
+    if (!value) {
+      throw new Error(`Environment variable ${key} is required but not set`);
     }
     return value;
-  }
-
-  private normalizeCategories(categories: string[]): string[] {
-    const normalized = categories
-      .map((category) => category.trim())
-      .filter((category) => category.length > 0);
-
-    const unique = Array.from(new Set(normalized.map((c) => c.toLowerCase())));
-
-    // Preserve original casing of first occurrence by mapping lowercase back
-    const lowerToOriginal = new Map<string, string>();
-    for (const category of normalized) {
-      const key = category.toLowerCase();
-      if (!lowerToOriginal.has(key)) {
-        lowerToOriginal.set(key, category);
-      }
-    }
-
-    return unique.map((key) => lowerToOriginal.get(key) ?? key);
   }
 }
