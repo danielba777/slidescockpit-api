@@ -133,6 +133,67 @@ export class SlideshowPostsService {
     return Array.from(categoriesSet).sort();
   }
 
+  async uploadSlides(files: Express.Multer.File[]) {
+    const uploadedUrls = await Promise.all(
+      files.map((file) => this.uploadSlideImage(file)),
+    );
+    return uploadedUrls;
+  }
+
+  async updatePostStats(
+    postId: string,
+    stats: {
+      likeCount?: number;
+      viewCount?: number;
+      commentCount?: number;
+      shareCount?: number;
+    },
+  ) {
+    return this.prisma.slideshowPost.update({
+      where: { id: postId },
+      data: stats,
+      include: {
+        slides: { orderBy: { slideIndex: 'asc' } },
+        account: true,
+      },
+    });
+  }
+
+  async updateSlideOrder(postId: string, slideIds: string[]) {
+    const updatePromises = slideIds.map((slideId, index) =>
+      this.prisma.slideshowSlide.update({
+        where: { id: slideId },
+        data: { slideIndex: index },
+      }),
+    );
+
+    await Promise.all(updatePromises);
+
+    return this.getPostById(postId);
+  }
+
+  async updatePostPrompt(id: string, prompt: string | null) {
+    return this.prisma.slideshowPost.update({
+      where: { id },
+      data: { prompt },
+      include: {
+        slides: { orderBy: { slideIndex: 'asc' } },
+        account: true,
+      },
+    });
+  }
+
+  async updatePostCategories(id: string, categories: string[]) {
+    return this.prisma.slideshowPost.update({
+      where: { id },
+      data: { categories },
+      include: {
+        slides: { orderBy: { slideIndex: 'asc' } },
+        account: true,
+      },
+    });
+  }
+
   async deletePost(id: string) {
     return this.prisma.slideshowPost.delete({
       where: { id },
