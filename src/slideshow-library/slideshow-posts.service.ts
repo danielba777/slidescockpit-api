@@ -1,10 +1,15 @@
 // src/slideshow-library/slideshow-posts.service.ts
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { randomUUID } from 'crypto';
 import { Express } from 'express';
 import sharp from 'sharp';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class SlideshowPostsService {
@@ -59,38 +64,50 @@ export class SlideshowPostsService {
       })),
     );
 
-    const post = await this.prisma.slideshowPost.create({
-      data: {
-        accountId: data.accountId,
-        postId: data.postId,
-        caption: data.caption,
-        categories: data.categories ?? [],
-        prompt: data.prompt,
-        likeCount: data.likeCount ?? 0,
-        viewCount: data.viewCount ?? 0,
-        commentCount: data.commentCount ?? 0,
-        shareCount: data.shareCount ?? 0,
-        publishedAt: data.publishedAt,
-        createdAt: data.createdAt,
-        duration: data.duration,
-        slideCount: slidesWithHostedImages.length,
-        slides: {
-          create: slidesWithHostedImages.map((slide) => ({
-            slideIndex: slide.slideIndex,
-            imageUrl: slide.imageUrl,
-            textContent: slide.textContent,
-            backgroundColor: slide.backgroundColor,
-            textPosition: slide.textPosition,
-            textColor: slide.textColor,
-            fontSize: slide.fontSize,
-            duration: slide.duration,
-          })),
+    try {
+      const post = await this.prisma.slideshowPost.create({
+        data: {
+          accountId: data.accountId,
+          postId: data.postId,
+          caption: data.caption,
+          categories: data.categories ?? [],
+          prompt: data.prompt,
+          likeCount: data.likeCount ?? 0,
+          viewCount: data.viewCount ?? 0,
+          commentCount: data.commentCount ?? 0,
+          shareCount: data.shareCount ?? 0,
+          publishedAt: data.publishedAt,
+          createdAt: data.createdAt,
+          duration: data.duration,
+          slideCount: slidesWithHostedImages.length,
+          slides: {
+            create: slidesWithHostedImages.map((slide) => ({
+              slideIndex: slide.slideIndex,
+              imageUrl: slide.imageUrl,
+              textContent: slide.textContent,
+              backgroundColor: slide.backgroundColor,
+              textPosition: slide.textPosition,
+              textColor: slide.textColor,
+              fontSize: slide.fontSize,
+              duration: slide.duration,
+            })),
+          },
         },
-      },
-      include: { slides: true },
-    });
+        include: { slides: true },
+      });
 
-    return post;
+      return post;
+    } catch (error) {
+      if (
+        error instanceof PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'A post with this identifier already exists',
+        );
+      }
+      throw error;
+    }
   }
 
   async getPostsByAccount(accountId: string, limit = 20) {

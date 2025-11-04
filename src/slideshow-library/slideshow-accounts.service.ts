@@ -1,9 +1,10 @@
 // src/slideshow-library/slideshow-accounts.service.ts
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { randomUUID } from 'crypto';
 import { Express } from 'express';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class SlideshowAccountsService {
@@ -36,7 +37,19 @@ export class SlideshowAccountsService {
     followingCount?: number;
     isVerified?: boolean;
   }) {
-    return this.prisma.slideshowAccount.create({ data });
+    try {
+      return await this.prisma.slideshowAccount.create({ data });
+    } catch (error) {
+      if (
+        error instanceof PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'An account with this username already exists',
+        );
+      }
+      throw error;
+    }
   }
 
   async getAllAccounts(includePosts = false) {
