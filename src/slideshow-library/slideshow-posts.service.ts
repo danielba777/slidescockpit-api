@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { randomUUID } from 'crypto';
 import { Express } from 'express';
+import sharp from 'sharp';
 
 @Injectable()
 export class SlideshowPostsService {
@@ -51,6 +52,13 @@ export class SlideshowPostsService {
       duration?: number;
     }>;
   }) {
+    const slidesWithHostedImages = await Promise.all(
+      data.slides.map(async (slide) => ({
+        ...slide,
+        imageUrl: await this.ensureSlideImageHosted(slide.imageUrl),
+      })),
+    );
+
     const post = await this.prisma.slideshowPost.create({
       data: {
         accountId: data.accountId,
@@ -65,9 +73,9 @@ export class SlideshowPostsService {
         publishedAt: data.publishedAt,
         createdAt: data.createdAt,
         duration: data.duration,
-        slideCount: data.slides.length,
+        slideCount: slidesWithHostedImages.length,
         slides: {
-          create: data.slides.map((slide) => ({
+          create: slidesWithHostedImages.map((slide) => ({
             slideIndex: slide.slideIndex,
             imageUrl: slide.imageUrl,
             textContent: slide.textContent,
@@ -221,6 +229,69 @@ export class SlideshowPostsService {
         account: true,
       },
     });
+  }
+
+  private async ensureSlideImageHosted(imageUrl: string): Promise<string> {
+    if (!imageUrl || typeof imageUrl !== 'string') {
+      throw new BadRequestException('Slide image URL is required');
+    }
+
+    if (imageUrl.startsWith(this.publicBaseUrl)) {
+      return imageUrl;
+    }
+
+    try {
+      const response = await fetch(imageUrl, {
+        headers: {
+          Accept:
+            'image/avif,image/heic,image/heif,image/webp,image/png,image/jpeg;q=0.8,*/*;q=0.5',
+          'User-Agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
+        },
+      });
+
+      if (!response.ok) {
+        throw new BadRequestException(
+          `Failed to download slide image: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const originalBuffer = Buffer.from(arrayBuffer);
+
+      const image = sharp(originalBuffer, { failOn: 'none' }).rotate();
+      const metadata = await image.metadata();
+      const usePng = Boolean(metadata.hasAlpha);
+
+      const processedBuffer = usePng
+        ? await image.png({ compressionLevel: 9 }).toBuffer()
+        : await image.jpeg({ quality: 90, mozjpeg: true }).toBuffer();
+
+      const extension = usePng ? 'png' : 'jpg';
+      const key = `slideshow-library/posts/${Date.now()}_${randomUUID()}.${extension}`;
+      const contentType = usePng ? 'image/png' : 'image/jpeg';
+
+      await this.s3.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+          Body: processedBuffer,
+          ContentType: contentType,
+          ACL: 'public-read',
+        }),
+      );
+
+      return `${this.publicBaseUrl}/${key}`;
+    } catch (error) {
+      console.error('[SlideshowPostsService] ensureSlideImageHosted failed', {
+        imageUrl,
+        error,
+      });
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to process slide image');
+    }
   }
 
   async uploadSlideImage(file: Express.Multer.File): Promise<string> {
