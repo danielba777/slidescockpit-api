@@ -92,6 +92,12 @@ export class SlideshowAccountsService {
     });
   }
 
+  async deleteAccount(id: string) {
+    return this.prisma.slideshowAccount.delete({
+      where: { id },
+    });
+  }
+
   async uploadProfileImage(file: Express.Multer.File) {
     if (!file) {
       return null;

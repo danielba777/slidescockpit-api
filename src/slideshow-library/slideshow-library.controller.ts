@@ -2,6 +2,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -61,6 +62,11 @@ export class SlideshowLibraryController {
     return this.accountsService.syncAccountData(id);
   }
 
+  @Delete('accounts/:id')
+  async deleteAccount(@Param('id') id: string) {
+    return this.accountsService.deleteAccount(id);
+  }
+
   // Posts
   @Get('posts')
   async getAllPosts(
@@ -91,6 +97,11 @@ export class SlideshowLibraryController {
   @Post('posts')
   async createPost(@Body() data: any) {
     return this.postsService.createPost(data);
+  }
+  
+  @Delete('posts/:id')
+  async deletePost(@Param('id') id: string) {
+    return this.postsService.deletePost(id);
   }
 
   @Post('posts/upload-slides')
