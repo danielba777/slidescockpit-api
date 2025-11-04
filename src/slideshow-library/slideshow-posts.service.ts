@@ -264,6 +264,7 @@ export class SlideshowPostsService {
             'image/avif,image/heic,image/heif,image/webp,image/png,image/jpeg;q=0.8,*/*;q=0.5',
           'User-Agent':
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
+          Referer: 'https://www.tiktok.com/',
         },
       });
 
@@ -273,32 +274,79 @@ export class SlideshowPostsService {
         );
       }
 
+      const contentTypeHeader = response.headers.get('Content-Type') ?? '';
+      const normalizedContentType = contentTypeHeader.toLowerCase();
+
       const arrayBuffer = await response.arrayBuffer();
       const originalBuffer = Buffer.from(arrayBuffer);
 
-      const image = sharp(originalBuffer, { failOn: 'none' }).rotate();
-      const metadata = await image.metadata();
-      const usePng = Boolean(metadata.hasAlpha);
+      const uploadBuffer = async (
+        buffer: Buffer,
+        extension: string,
+        contentType: string,
+      ) => {
+        const key = `slideshow-library/posts/${Date.now()}_${randomUUID()}.${extension}`;
+        await this.s3.send(
+          new PutObjectCommand({
+            Bucket: this.bucket,
+            Key: key,
+            Body: buffer,
+            ContentType: contentType,
+            ACL: 'public-read',
+          }),
+        );
+        return `${this.publicBaseUrl}/${key}`;
+      };
 
-      const processedBuffer = usePng
-        ? await image.png({ compressionLevel: 9 }).toBuffer()
-        : await image.jpeg({ quality: 90, mozjpeg: true }).toBuffer();
+      const inferExtension = () => {
+        if (normalizedContentType.includes('image/heic')) return 'heic';
+        if (normalizedContentType.includes('image/heif')) return 'heif';
+        if (normalizedContentType.includes('image/webp')) return 'webp';
+        if (normalizedContentType.includes('image/png')) return 'png';
+        if (normalizedContentType.includes('image/jpeg')) return 'jpg';
+        if (normalizedContentType.includes('image/jpg')) return 'jpg';
+        return 'bin';
+      };
 
-      const extension = usePng ? 'png' : 'jpg';
-      const key = `slideshow-library/posts/${Date.now()}_${randomUUID()}.${extension}`;
-      const contentType = usePng ? 'image/png' : 'image/jpeg';
+      if (
+        normalizedContentType.includes('image/heic') ||
+        normalizedContentType.includes('image/heif')
+      ) {
+        return await uploadBuffer(
+          originalBuffer,
+          inferExtension(),
+          contentTypeHeader || 'image/heic',
+        );
+      }
 
-      await this.s3.send(
-        new PutObjectCommand({
-          Bucket: this.bucket,
-          Key: key,
-          Body: processedBuffer,
-          ContentType: contentType,
-          ACL: 'public-read',
-        }),
-      );
+      try {
+        const image = sharp(originalBuffer, { failOn: 'none' }).rotate();
+        const metadata = await image.metadata();
+        const usePng = Boolean(metadata.hasAlpha);
 
-      return `${this.publicBaseUrl}/${key}`;
+        const processedBuffer = usePng
+          ? await image.png({ compressionLevel: 9 }).toBuffer()
+          : await image.jpeg({ quality: 90, mozjpeg: true }).toBuffer();
+
+        const extension = usePng ? 'png' : 'jpg';
+        const contentType = usePng ? 'image/png' : 'image/jpeg';
+
+        return await uploadBuffer(processedBuffer, extension, contentType);
+      } catch (processingError) {
+        console.warn(
+          '[SlideshowPostsService] Failed to convert image with sharp, falling back to original buffer',
+          {
+            imageUrl,
+            error: processingError,
+          },
+        );
+
+        return await uploadBuffer(
+          originalBuffer,
+          inferExtension(),
+          contentTypeHeader || 'application/octet-stream',
+        );
+      }
     } catch (error) {
       console.error('[SlideshowPostsService] ensureSlideImageHosted failed', {
         imageUrl,
