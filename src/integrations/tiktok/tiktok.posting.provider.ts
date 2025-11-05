@@ -356,7 +356,7 @@ export class TikTokPostingProvider extends SocialAbstract {
         break;
     }
 
-    return isPhoto ? 'MEDIA_UPLOAD' : 'DIRECT_POST';
+    return isPhoto ? 'DIRECT_POST' : 'DIRECT_POST';
   }
 
   private async uploadedVideoSuccess(
