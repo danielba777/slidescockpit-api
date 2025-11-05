@@ -39,12 +39,7 @@ export class TikTokPostingProvider extends SocialAbstract {
   protected readonly logger = new Logger(TikTokPostingProvider.name);
   private readonly clientKey = this.requireEnv('TIKTOK_CLIENT_KEY');
   private readonly clientSecret = this.requireEnv('TIKTOK_CLIENT_SECRET');
-  private readonly scopes = [
-    'user.info.basic',
-    'user.info.profile',
-    'video.upload',
-    'video.publish',
-  ];
+  private readonly scopes = ['user.info.basic', 'video.upload', 'video.publish'];
 
   async refreshToken(refreshToken: string): Promise<RefreshTokenResult> {
     const form = new URLSearchParams({
@@ -569,7 +564,7 @@ export class TikTokPostingProvider extends SocialAbstract {
 
   private async fetchUserInfo(accessToken: string) {
     const params = new URLSearchParams({
-      fields: 'open_id,display_name,avatar_url,username,union_id',
+      fields: 'open_id,display_name,avatar_url',
     });
 
     const response = await this.fetch(
