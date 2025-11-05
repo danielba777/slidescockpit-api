@@ -1,5 +1,6 @@
 // src/slideshow-library/slideshow-library.controller.ts
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -94,9 +95,36 @@ export class SlideshowLibraryController {
     return this.postsService.getPostsByAccount(accountId, limit);
   }
 
+  @Get('users/:userId/posts')
+  async getPostsForUser(
+    @Param('userId') userId: string,
+    @Query('limit') limit?: number,
+  ) {
+    return this.postsService.getPostsForUser(userId, limit);
+  }
+
   @Post('posts')
   async createPost(@Body() data: any) {
     return this.postsService.createPost(data);
+  }
+
+  @Post('user-posts')
+  async addPostToUser(
+    @Body() body: { userId?: string; postId?: string },
+  ) {
+    if (!body?.userId || !body?.postId) {
+      throw new BadRequestException('Missing userId or postId');
+    }
+
+    const post = await this.postsService.addPostToUser(
+      body.userId,
+      body.postId,
+    );
+
+    return {
+      success: true,
+      post,
+    };
   }
   
   @Delete('posts/:id')

@@ -16,6 +16,7 @@ model User {
   accounts  TikTokAccount[]
   avatarGenerations AiAvatarGeneration[]
   avatarGenerationJobs AiAvatarGenerationJob[]
+  postCollections   UserPostCollection[]
 }
 
 model TikTokAccount {
@@ -196,12 +197,25 @@ model SlideshowPost {
   prompt       String?
   account      SlideshowAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
   slides       SlideshowSlide[]
+  collectors   UserPostCollection[]
 
   @@index([accountId])
   @@index([postId])
   @@index([isActive])
   @@index([publishedAt])
   @@index([lastSyncedAt])
+}
+
+model UserPostCollection {
+  id        String         @id @default(uuid())
+  userId    String
+  postId    String
+  createdAt DateTime       @default(now())
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      SlideshowPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([postId])
 }
 
 model SlideshowSlide {

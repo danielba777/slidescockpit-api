@@ -3,6 +3,7 @@ import {
   Injectable,
   BadRequestException,
   ConflictException,
+  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -56,6 +57,7 @@ export class SlideshowPostsService {
       fontSize?: number;
       duration?: number;
     }>;
+    ownerUserId?: string;
   }) {
     const slidesWithHostedImages = await Promise.all(
       data.slides.map(async (slide) => ({
@@ -96,15 +98,35 @@ export class SlideshowPostsService {
         include: { slides: true },
       });
 
+      if (data.ownerUserId) {
+        await this.ensureUserPostCollection(data.ownerUserId, post.id);
+      }
+
       return post;
     } catch (error) {
       if (
         error instanceof PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        throw new ConflictException(
-          'A post with this identifier already exists',
-        );
+        const existing = await this.prisma.slideshowPost.findUnique({
+          where: { postId: data.postId },
+          include: {
+            slides: { orderBy: { slideIndex: 'asc' } },
+            account: true,
+          },
+        });
+
+        if (!existing) {
+          throw new ConflictException(
+            'A post with this identifier already exists',
+          );
+        }
+
+        if (data.ownerUserId) {
+          await this.ensureUserPostCollection(data.ownerUserId, existing.id);
+        }
+
+        return existing;
       }
       throw error;
     }
@@ -215,6 +237,65 @@ export class SlideshowPostsService {
       include: {
         slides: { orderBy: { slideIndex: 'asc' } },
         account: true,
+      },
+    });
+  }
+
+  async addPostToUser(userId: string, postId: string) {
+    const post = await this.prisma.slideshowPost.findUnique({
+      where: { id: postId },
+      include: {
+        slides: { orderBy: { slideIndex: 'asc' } },
+        account: true,
+      },
+    });
+
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    await this.ensureUserPostCollection(userId, postId);
+    return post;
+  }
+
+  async getPostsForUser(userId: string, limit = 50) {
+    const collections = await this.prisma.userPostCollection.findMany({
+      where: { userId },
+      include: {
+        post: {
+          include: {
+            slides: { orderBy: { slideIndex: 'asc' } },
+            account: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+
+    return collections
+      .map((entry) => entry.post)
+      .filter((post): post is NonNullable<typeof post> => Boolean(post));
+  }
+
+  private async ensureUserPostCollection(userId: string, postId: string) {
+    await this.prisma.user.upsert({
+      where: { id: userId },
+      create: { id: userId },
+      update: {},
+    });
+
+    await this.prisma.userPostCollection.upsert({
+      where: {
+        userId_postId: {
+          userId,
+          postId,
+        },
+      },
+      update: {},
+      create: {
+        userId,
+        postId,
       },
     });
   }
