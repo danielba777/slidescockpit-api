@@ -52,6 +52,19 @@ export class TikTokAccountRepository {
     return this.toDomain(result);
   }
 
+  async deleteAccount(userId: string, openId: string): Promise<number> {
+    const normalizedOpenId = this.normalizeOpenId(openId);
+
+    const result = await this.prisma.tikTokAccount.deleteMany({
+      where: {
+        userId,
+        openId: normalizedOpenId,
+      },
+    });
+
+    return result.count;
+  }
+
   private toDomain(record: TikTokAccountEntity): TikTokAccount {
     return {
       userId: record.userId,

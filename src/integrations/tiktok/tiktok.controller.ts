@@ -1,14 +1,16 @@
-import { Body, Controller, Get, Headers, Post, BadRequestException } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Post, BadRequestException } from '@nestjs/common';
 
 import { SessionService } from '../../common/session/session.service';
 import { ConnectTikTokDto } from './dto/connect-tiktok.dto';
 import { TikTokService } from './tiktok.service';
+import { TikTokAccountRepository } from './tiktok-account.repository';
 
 @Controller('integrations/social/tiktok')
 export class TikTokController {
   constructor(
     private readonly sessionService: SessionService,
     private readonly tikTokService: TikTokService,
+    private readonly tikTokAccountRepository: TikTokAccountRepository,
   ) {}
 
   @Get()
@@ -44,6 +46,22 @@ export class TikTokController {
         ...publicAccount,
       }
     ));
+  }
+
+  @Delete(':openId/disconnect')
+  async disconnectAccount(
+    @Headers('x-user-id') userId: string,
+    @Param('openId') openId: string,
+  ) {
+    const resolvedUserId = this.ensureUserId(userId);
+    const normalizedOpenId = openId.trim();
+
+    const deleted = await this.tikTokAccountRepository.deleteAccount(resolvedUserId, normalizedOpenId);
+
+    return {
+      success: true,
+      deleted: deleted > 0,
+    };
   }
 
   private ensureUserId(userId: string | undefined): string {

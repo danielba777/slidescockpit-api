@@ -38,6 +38,10 @@ export class TikTokPostingService {
       throw new BadRequestException('TikTok account not found');
     }
 
+    // Debug: Log current scopes
+    this.logger.debug(`TikTok account current scopes: ${account.scope?.join(', ') || '(none)'}`);
+    this.logger.debug(`Required scopes: ${['user.info.basic', 'video.upload', 'video.publish'].join(', ')}`);
+
     const readyAccount = await this.ensureFreshToken(account);
 
     try {
