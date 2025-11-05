@@ -57,6 +57,7 @@ export class SlideshowPostsService {
       fontSize?: number;
       duration?: number;
     }>;
+    isActive?: boolean;
     ownerUserId?: string;
   }) {
     const slidesWithHostedImages = await Promise.all(
@@ -82,6 +83,7 @@ export class SlideshowPostsService {
           createdAt: data.createdAt,
           duration: data.duration,
           slideCount: slidesWithHostedImages.length,
+          isActive: data.isActive ?? true,
           slides: {
             create: slidesWithHostedImages.map((slide) => ({
               slideIndex: slide.slideIndex,
@@ -108,7 +110,7 @@ export class SlideshowPostsService {
         error instanceof PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        const existing = await this.prisma.slideshowPost.findUnique({
+        let existing = await this.prisma.slideshowPost.findUnique({
           where: { postId: data.postId },
           include: {
             slides: { orderBy: { slideIndex: 'asc' } },
@@ -120,6 +122,17 @@ export class SlideshowPostsService {
           throw new ConflictException(
             'A post with this identifier already exists',
           );
+        }
+
+        if (data.isActive === true && existing.isActive === false) {
+          existing = await this.prisma.slideshowPost.update({
+            where: { id: existing.id },
+            data: { isActive: true },
+            include: {
+              slides: { orderBy: { slideIndex: 'asc' } },
+              account: true,
+            },
+          });
         }
 
         if (data.ownerUserId) {
@@ -471,6 +484,7 @@ export class SlideshowPostsService {
       publishedAt: Date;
       createdAt: Date;
       duration?: number;
+      isActive?: boolean;
       slides: Array<{
         slideIndex: number;
         textContent?: string;
