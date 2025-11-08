@@ -402,21 +402,16 @@ export class SlideshowPostsService {
         return 'bin';
       };
 
-      if (
-        normalizedContentType.includes('image/heic') ||
-        normalizedContentType.includes('image/heif')
-      ) {
-        return await uploadBuffer(
-          originalBuffer,
-          inferExtension(),
-          contentTypeHeader || 'image/heic',
-        );
-      }
+      // Removed HEIC/HEIF special handling - now convert all images including HEIC
 
       try {
         const image = sharp(originalBuffer, { failOn: 'none' }).rotate();
         const metadata = await image.metadata();
-        const usePng = Boolean(metadata.hasAlpha);
+
+        // For HEIC/HEIF, always convert to JPEG for better browser compatibility
+        const forceJpeg = normalizedContentType.includes('image/heic') ||
+                         normalizedContentType.includes('image/heif');
+        const usePng = !forceJpeg && Boolean(metadata.hasAlpha);
 
         const processedBuffer = usePng
           ? await image.png({ compressionLevel: 9 }).toBuffer()
@@ -425,20 +420,37 @@ export class SlideshowPostsService {
         const extension = usePng ? 'png' : 'jpg';
         const contentType = usePng ? 'image/png' : 'image/jpeg';
 
+        console.log('[SlideshowPostsService] Successfully converted image', {
+          from: normalizedContentType,
+          to: contentType,
+          extension,
+          forceJpeg,
+        });
+
         return await uploadBuffer(processedBuffer, extension, contentType);
       } catch (processingError) {
         console.warn(
           '[SlideshowPostsService] Failed to convert image with sharp, falling back to original buffer',
           {
             imageUrl,
+            contentType: normalizedContentType,
             error: processingError,
           },
         );
 
+        // If this is HEIC/HEIF and conversion failed, we still need to handle it
+        // Upload as original format but note that browser compatibility may be limited
+        const isHeic = normalizedContentType.includes('image/heic') ||
+                      normalizedContentType.includes('image/heif');
+
+        if (isHeic) {
+          console.warn('[SlideshowPostsService] HEIC image uploaded without conversion - browser compatibility limited');
+        }
+
         return await uploadBuffer(
           originalBuffer,
           inferExtension(),
-          contentTypeHeader || 'application/octet-stream',
+          contentTypeHeader || (isHeic ? 'image/heic' : 'application/octet-stream'),
         );
       }
     } catch (error) {
