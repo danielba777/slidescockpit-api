@@ -1,0 +1,183 @@
+Bitte setze nur die diffs um, fasse keine anderen Dateien an oder ändere keine anderen Stellen:
+
+
+*** Begin Patch
+*** Update File: src/app.module.ts
+@@
+ import { QueueModule } from './queue/queue.module';
+ import { AiAvatarTemplatesModule } from './ai-avatars/ai-avatar-templates.module';
++import { SoundsModule } from './sounds/sounds.module';
+ 
+ @Module({
+   imports: [
+     AuthModule,
+     TikTokModule,
+     FilesModule,
+     ImagesetsModule,
+     SlideshowLibraryModule,
+     PrismaModule,
+     QueueModule,
+-    AiAvatarTemplatesModule,
++    AiAvatarTemplatesModule,
++    SoundsModule,
+   ],
+   controllers: [AppController],
+   providers: [AppService],
+ })
+ export class AppModule {}
+*** End Patch
+diff
+Code kopieren
+*** Begin Patch
+*** Add File: src/sounds/sounds.module.ts
++import { Module } from '@nestjs/common';
++import { SoundsController } from './sounds.controller';
++import { SoundsService } from './sounds.service';
++import { FilesModule } from '../files/files.module';
++
++@Module({
++  imports: [FilesModule],
++  controllers: [SoundsController],
++  providers: [SoundsService],
++  exports: [SoundsService],
++})
++export class SoundsModule {}
++
+*** End Patch
+diff
+Code kopieren
+*** Begin Patch
+*** Add File: src/sounds/sounds.service.ts
++import { Injectable } from '@nestjs/common';
++import {
++  S3Client,
++  ListObjectsV2Command,
++  _Object as S3Object,
++} from '@aws-sdk/client-s3';
++
++@Injectable()
++export class SoundsService {
++  private readonly bucket =
++    process.env.HCLOUD_S3_BUCKET ?? 'slidescockpit-files';
++  private readonly publicBaseUrl =
++    process.env.HCLOUD_S3_PUBLIC_BASE_URL ?? 'https://files.slidescockpit.com';
++  private readonly prefix = 'ugc/sounds/';
++
++  private readonly s3 = new S3Client({
++    region: process.env.HCLOUD_S3_REGION ?? 'nbg1',
++    endpoint:
++      process.env.HCLOUD_S3_ENDPOINT ?? 'https://nbg1.your-objectstorage.com',
++    forcePathStyle: false,
++    credentials: {
++      accessKeyId: process.env.HCLOUD_S3_KEY ?? '',
++      secretAccessKey: process.env.HCLOUD_S3_SECRET ?? '',
++    },
++  });
++
++  async list(): Promise<
++    {
++      key: string;
++      name: string;
++      url: string;
++      size?: number;
++      coverUrl?: string | null;
++    }[]
++  > {
++    const objects: S3Object[] = [];
++    let ContinuationToken: string | undefined = undefined;
++    do {
++      const res = await this.s3.send(
++        new ListObjectsV2Command({
++          Bucket: this.bucket,
++          Prefix: this.prefix,
++          ContinuationToken,
++        }),
++      );
++      if (res.Contents?.length) objects.push(...res.Contents);
++      ContinuationToken = res.IsTruncated ? res.NextContinuationToken : undefined;
++    } while (ContinuationToken);
++
++    // Mappe Cover-Dateien zu ihrer Audio-Basis
++    const isCover = (k: string) => /\.cover\.(png|jpe?g|webp|gif|avif)$/i.test(k);
++    const isAudio = (k: string) =>
++      /\.(mp3|m4a|aac|wav|ogg|flac)$/i.test(k) && !isCover(k);
++
++    const toKey = (o: S3Object) => o.Key ?? '';
++    const covers = new Map<string, string>(); // base -> coverKey
++    for (const o of objects) {
++      const key = toKey(o);
++      if (key && isCover(key)) {
++        const base = key.replace(/\.cover\.(png|jpe?g|webp|gif|avif)$/i, '');
++        covers.set(base, key);
++      }
++    }
++
++    const items: {
++      key: string;
++      name: string;
++      url: string;
++      size?: number;
++      coverUrl?: string | null;
++    }[] = [];
++
++    for (const o of objects) {
++      const key = toKey(o);
++      if (!key || !isAudio(key)) continue;
++      const url = `${this.publicBaseUrl}/${encodeURI(key)}`;
++      const coverKey = covers.get(key);
++      const coverUrl = coverKey
++        ? `${this.publicBaseUrl}/${encodeURI(coverKey)}`
++        : null;
++      const name = key.substring(this.prefix.length);
++      items.push({
++        key,
++        name,
++        url,
++        size: o.Size,
++        coverUrl,
++      });
++    }
++
++    // sortiere nach Key (neuere / datumsbasierte Namen werden i.d.R. zuletzt)
++    items.sort((a, b) => a.name.localeCompare(b.name));
++    return items;
++  }
++}
++
+*** End Patch
+diff
+Code kopieren
+*** Begin Patch
+*** Add File: src/sounds/sounds.controller.ts
++import { Controller, Get, Query } from '@nestjs/common';
++import { SoundsService } from './sounds.service';
++import { FilesService } from '../files/files.service';
++
++@Controller('sounds')
++export class SoundsController {
++  constructor(
++    private readonly sounds: SoundsService,
++    private readonly files: FilesService,
++  ) {}
++
++  // Listet alle Sounds + optionales Cover aus dem Hetzner-S3 unter "ugc/sounds/"
++  @Get()
++  async listSounds() {
++    const items = await this.sounds.list();
++    return { sounds: items };
++  }
++
++  // Liefert Presign + Public-URL für einen spezifischen Key
++  // Beispiel: GET /sounds/presign?key=ugc/sounds/1731033345-my_song.mp3&contentType=audio/mpeg
++  @Get('presign')
++  async presign(@Query('key') key: string, @Query('contentType') contentType?: string) {
++    const res = await this.files.createUploadUrl({
++      key,
++      contentType,
++      expiresInSec: 900,
++    });
++    return res;
++  }
++}
++
+*** End Patch
