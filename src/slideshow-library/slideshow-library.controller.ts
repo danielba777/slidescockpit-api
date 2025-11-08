@@ -41,6 +41,11 @@ export class SlideshowLibraryController {
     return this.accountsService.createAccount(data);
   }
 
+  @Post('accounts/find-or-create')
+  async findOrCreateAccount(@Body() data: any) {
+    return this.accountsService.findOrCreateAccount(data);
+  }
+
   @Post('accounts/upload-profile')
   @UseInterceptors(FilesInterceptor('profileImage', 1))
   async uploadProfileImage(@UploadedFiles() files: Express.Multer.File[]) {

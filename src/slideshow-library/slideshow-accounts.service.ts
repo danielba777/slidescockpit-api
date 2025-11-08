@@ -52,6 +52,50 @@ export class SlideshowAccountsService {
     }
   }
 
+  async findOrCreateAccount(data: {
+    username: string;
+    displayName: string;
+    bio?: string;
+    profileImageUrl?: string;
+    followerCount?: number;
+    followingCount?: number;
+    isVerified?: boolean;
+  }) {
+    try {
+      // First try to find existing account
+      const existingAccount = await this.prisma.slideshowAccount.findUnique({
+        where: { username: data.username.toLowerCase() },
+      });
+
+      if (existingAccount) {
+        // Update existing account with latest data
+        return await this.prisma.slideshowAccount.update({
+          where: { id: existingAccount.id },
+          data: {
+            displayName: data.displayName,
+            bio: data.bio,
+            profileImageUrl: data.profileImageUrl,
+            followerCount: data.followerCount,
+            followingCount: data.followingCount,
+            isVerified: data.isVerified,
+            lastSyncedAt: new Date(),
+          },
+        });
+      }
+
+      // Create new account if not found
+      return await this.prisma.slideshowAccount.create({
+        data: {
+          ...data,
+          username: data.username.toLowerCase(),
+          lastSyncedAt: new Date(),
+        },
+      });
+    } catch (error) {
+      throw error;
+    }
+  }
+
   async getAllAccounts(includePosts = false) {
     return this.prisma.slideshowAccount.findMany({
       include: {
