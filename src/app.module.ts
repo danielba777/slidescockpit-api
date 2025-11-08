@@ -12,6 +12,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { QueueModule } from './queue/queue.module';
 import { AiAvatarTemplatesModule } from './ai-avatars/ai-avatar-templates.module';
 import { LandingPageThemesModule } from './landing-page-themes/landing-page-themes.module';
+import { SoundsModule } from './sounds/sounds.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { LandingPageThemesModule } from './landing-page-themes/landing-page-them
     PrismaModule,
     QueueModule,
     AiAvatarTemplatesModule,
+    SoundsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
