@@ -51,12 +51,16 @@ export class ImagesetsController {
   async createImagesFromExternalUrls(
     @Param('id') imageSetId: string,
     @Body()
-    body: { images?: { url: string; filename?: string; originalFilename?: string }[] },
+    body: {
+      images?: { url: string; filename?: string; originalFilename?: string }[];
+    },
   ) {
-    const items = Array.isArray(body?.images) ? body!.images! : [];
-    return this.imagesetsService.createImagesFromExternalUrls(imageSetId, items);
+    const items = Array.isArray(body?.images) ? body.images : [];
+    return this.imagesetsService.createImagesFromExternalUrls(
+      imageSetId,
+      items,
+    );
   }
-
 
   @Get(':id/random-image')
   async getRandomImage(

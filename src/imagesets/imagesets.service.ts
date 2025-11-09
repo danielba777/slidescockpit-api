@@ -43,16 +43,22 @@ export class ImagesetsService {
     imageSetId: string,
     items: { url: string; filename?: string; originalFilename?: string }[],
   ) {
-    const imageSet = await this.prisma.imageSet.findUnique({ where: { id: imageSetId } });
+    const imageSet = await this.prisma.imageSet.findUnique({
+      where: { id: imageSetId },
+    });
     if (!imageSet) throw new Error('ImageSet not found');
 
-    const existingCount = await this.prisma.imageSetImage.count({ where: { imageSetId } });
+    const existingCount = await this.prisma.imageSetImage.count({
+      where: { imageSetId },
+    });
     const created = [];
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       if (!it?.url) continue;
       const provided =
-        it.filename || it.originalFilename || `image_${imageSet.slug}_${Date.now()}_${i}.jpg`;
+        it.filename ||
+        it.originalFilename ||
+        `image_${imageSet.slug}_${Date.now()}_${i}.jpg`;
       const rec = await this.prisma.imageSetImage.create({
         data: {
           imageSetId,
@@ -72,7 +78,6 @@ export class ImagesetsService {
     return created;
   }
 
-
   async uploadOriginalImagesToSet(
     imageSetId: string,
     files: Express.Multer.File[],
@@ -87,7 +92,9 @@ export class ImagesetsService {
     const uploadedImages = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const fileExtension = (file.originalname.split('.').pop() || 'bin').toLowerCase();
+      const fileExtension = (
+        file.originalname.split('.').pop() || 'bin'
+      ).toLowerCase();
       const filename = `${imageSet.slug}_${randomUUID()}.${fileExtension}`;
       const s3Key = `imagesets/${imageSet.slug}/original/${filename}`;
 
@@ -120,7 +127,6 @@ export class ImagesetsService {
     }
     return uploadedImages;
   }
-
 
   async createImageSet(data: { name: string; parentId?: string }) {
     const slug = data.name.toLowerCase().replace(/[^a-z0-9]/g, '-');

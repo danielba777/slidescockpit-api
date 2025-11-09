@@ -19,7 +19,10 @@ export class SoundsController {
   // Liefert Presign + Public-URL für einen spezifischen Key
   // Beispiel: GET /sounds/presign?key=ugc/sounds/1731033345-my_song.mp3&contentType=audio/mpeg
   @Get('presign')
-  async presign(@Query('key') key: string, @Query('contentType') contentType?: string) {
+  async presign(
+    @Query('key') key: string,
+    @Query('contentType') contentType?: string,
+  ) {
     const res = await this.files.createUploadUrl({
       key,
       contentType,

@@ -25,7 +25,9 @@ export class TikTokScheduler implements OnModuleInit {
     this.queue.attachWorker(async (payload, job) => {
       const { userId, openId, body } = payload as ScheduleJobPayload;
       const jobId = job.id ?? '';
-      this.logger.log(`Executing scheduled TikTok post for user=${userId} openId=${openId} jobId=${jobId}`);
+      this.logger.log(
+        `Executing scheduled TikTok post for user=${userId} openId=${openId} jobId=${jobId}`,
+      );
 
       if (jobId) {
         await this.posts.markRunningByJobId(jobId);

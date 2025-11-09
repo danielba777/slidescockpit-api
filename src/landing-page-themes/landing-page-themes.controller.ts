@@ -43,4 +43,3 @@ export class LandingPageThemesController {
     return this.themesService.deleteTheme(id);
   }
 }
-

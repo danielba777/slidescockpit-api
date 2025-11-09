@@ -13,4 +13,3 @@ export class ConnectTikTokDto {
   @IsOptional()
   timezone?: string;
 }
-

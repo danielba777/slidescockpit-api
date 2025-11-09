@@ -20,7 +20,10 @@ export class TikTokAccountRepository {
     return records.map((record) => this.toDomain(record));
   }
 
-  async getAccount(userId: string, openId: string): Promise<TikTokAccount | undefined> {
+  async getAccount(
+    userId: string,
+    openId: string,
+  ): Promise<TikTokAccount | undefined> {
     const normalizedOpenId = this.normalizeOpenId(openId);
     const record = await this.prisma.tikTokAccount.findUnique({
       where: {
@@ -95,7 +98,9 @@ export class TikTokAccountRepository {
       accessToken: account.accessToken,
       refreshToken: account.refreshToken,
       expiresAt: new Date(account.expiresAt),
-      refreshExpiresAt: account.refreshExpiresAt ? new Date(account.refreshExpiresAt) : null,
+      refreshExpiresAt: account.refreshExpiresAt
+        ? new Date(account.refreshExpiresAt)
+        : null,
       scope: account.scope ?? [],
       timezoneOffsetMinutes: account.timezoneOffsetMinutes,
       connectedAt: new Date(account.connectedAt ?? new Date().toISOString()),

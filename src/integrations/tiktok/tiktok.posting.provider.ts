@@ -1,8 +1,19 @@
-import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 
-import { BadBody, RefreshToken, SocialAbstract } from '../social/social.abstract';
+import {
+  BadBody,
+  RefreshToken,
+  SocialAbstract,
+} from '../social/social.abstract';
 import { TikTokAccount } from './tiktok.types';
-import { TikTokPostRequestDto, TikTokPostingSettingsDto } from './dto/post-tiktok.dto';
+import {
+  TikTokPostRequestDto,
+  TikTokPostingSettingsDto,
+} from './dto/post-tiktok.dto';
 
 type TikTokPostResult =
   | {
@@ -39,7 +50,11 @@ export class TikTokPostingProvider extends SocialAbstract {
   protected readonly logger = new Logger(TikTokPostingProvider.name);
   private readonly clientKey = this.requireEnv('TIKTOK_CLIENT_KEY');
   private readonly clientSecret = this.requireEnv('TIKTOK_CLIENT_SECRET');
-  private readonly scopes = ['user.info.basic', 'video.upload', 'video.publish'];
+  private readonly scopes = [
+    'user.info.basic',
+    'video.upload',
+    'video.publish',
+  ];
 
   async refreshToken(refreshToken: string): Promise<RefreshTokenResult> {
     const form = new URLSearchParams({
@@ -49,11 +64,14 @@ export class TikTokPostingProvider extends SocialAbstract {
       refresh_token: refreshToken,
     });
 
-    const response = await this.fetch('https://open.tiktokapis.com/v2/oauth/token/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: form.toString(),
-    });
+    const response = await this.fetch(
+      'https://open.tiktokapis.com/v2/oauth/token/',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form.toString(),
+      },
+    );
 
     const payload = await response.json().catch(() => undefined);
     if (!response.ok) {
@@ -69,7 +87,8 @@ export class TikTokPostingProvider extends SocialAbstract {
     this.checkScopes(this.scopes, scope);
 
     const accessToken = data?.access_token ?? payload?.access_token;
-    const nextRefreshToken = data?.refresh_token ?? payload?.refresh_token ?? refreshToken;
+    const nextRefreshToken =
+      data?.refresh_token ?? payload?.refresh_token ?? refreshToken;
 
     if (!accessToken) {
       throw new RefreshToken('TikTok refresh did not return an access token');
@@ -80,11 +99,13 @@ export class TikTokPostingProvider extends SocialAbstract {
     return {
       accessToken,
       refreshToken: nextRefreshToken,
-      expiresIn: typeof (data?.expires_in ?? payload?.expires_in) === 'number'
-        ? (data?.expires_in ?? payload?.expires_in)
-        : null,
+      expiresIn:
+        typeof (data?.expires_in ?? payload?.expires_in) === 'number'
+          ? (data?.expires_in ?? payload?.expires_in)
+          : null,
       refreshExpiresIn:
-        typeof (data?.refresh_expires_in ?? payload?.refresh_expires_in) === 'number'
+        typeof (data?.refresh_expires_in ?? payload?.refresh_expires_in) ===
+        'number'
           ? (data?.refresh_expires_in ?? payload?.refresh_expires_in)
           : null,
       scope,
@@ -95,7 +116,10 @@ export class TikTokPostingProvider extends SocialAbstract {
     };
   }
 
-  async post(account: TikTokAccount, payload: TikTokPostRequestDto): Promise<TikTokPostResult> {
+  async post(
+    account: TikTokAccount,
+    payload: TikTokPostRequestDto,
+  ): Promise<TikTokPostResult> {
     const { publishId } = await this.initPost(account, payload);
 
     const finalState = await this.uploadedVideoSuccess(
@@ -119,16 +143,25 @@ export class TikTokPostingProvider extends SocialAbstract {
     };
   }
 
-  async initPostOnly(account: TikTokAccount, payload: TikTokPostRequestDto): Promise<{ publishId: string }> {
+  async initPostOnly(
+    account: TikTokAccount,
+    payload: TikTokPostRequestDto,
+  ): Promise<{ publishId: string }> {
     return this.initPost(account, payload);
   }
 
-  private async initPost(account: TikTokAccount, payload: TikTokPostRequestDto): Promise<{ publishId: string }> {
+  private async initPost(
+    account: TikTokAccount,
+    payload: TikTokPostRequestDto,
+  ): Promise<{ publishId: string }> {
     this.checkScopes(this.scopes, account.scope ?? []);
 
     const media = payload.media ?? [];
     if (media.length === 0) {
-      throw new BadBody('tiktok-missing-media', 'No media provided for TikTok post');
+      throw new BadBody(
+        'tiktok-missing-media',
+        'No media provided for TikTok post',
+      );
     }
 
     const primaryMedia = media[0];
@@ -146,7 +179,10 @@ export class TikTokPostingProvider extends SocialAbstract {
       title: payload.settings?.title,
     };
 
-    const endpointPath = this.postingMethod(settings.contentPostingMethod ?? 'DIRECT_POST', isPhoto);
+    const endpointPath = this.postingMethod(
+      settings.contentPostingMethod ?? 'DIRECT_POST',
+      isPhoto,
+    );
     const endpoint = `https://open.tiktokapis.com/v2/post/publish${endpointPath}`;
 
     const body = this.buildPostBody(
@@ -227,14 +263,20 @@ export class TikTokPostingProvider extends SocialAbstract {
         'tiktok-post-status-failed',
         serialized,
         Buffer.from(serialized),
-        handled?.value ?? this.extractErrorMessage(payload) ?? 'Failed to retrieve TikTok publish status',
+        handled?.value ??
+          this.extractErrorMessage(payload) ??
+          'Failed to retrieve TikTok publish status',
       );
     }
 
-    const { status, publicly_available_post_id, publicaly_available_post_id } = payload.data;
+    const { status, publicly_available_post_id, publicaly_available_post_id } =
+      payload.data;
 
     if (status === 'PUBLISH_COMPLETE') {
-      const postId = publicly_available_post_id?.[0] ?? publicaly_available_post_id?.[0] ?? publishId;
+      const postId =
+        publicly_available_post_id?.[0] ??
+        publicaly_available_post_id?.[0] ??
+        publishId;
       const url = publicly_available_post_id?.[0]
         ? `https://www.tiktok.com/@${profileId}/video/${publicly_available_post_id[0]}`
         : `https://www.tiktok.com/@${profileId}`;
@@ -268,7 +310,7 @@ export class TikTokPostingProvider extends SocialAbstract {
     const body: Record<string, unknown> = {};
     const resolvedPostMode = this.resolvePostMode(settings, postMode, isPhoto);
 
-    const titleSource = isPhoto ? settings.title ?? caption : caption;
+    const titleSource = isPhoto ? (settings.title ?? caption) : caption;
     const postInfo: Record<string, unknown> = {
       privacy_level: settings.privacyLevel ?? 'SELF_ONLY',
       disable_duet: !(settings.duet ?? false),
@@ -315,7 +357,10 @@ export class TikTokPostingProvider extends SocialAbstract {
     return body;
   }
 
-  private postingMethod(method: TikTokPostingSettingsDto['contentPostingMethod'], isPhoto: boolean): string {
+  private postingMethod(
+    method: TikTokPostingSettingsDto['contentPostingMethod'],
+    isPhoto: boolean,
+  ): string {
     switch (method) {
       case 'UPLOAD':
       case 'MEDIA_UPLOAD':
@@ -363,9 +408,14 @@ export class TikTokPostingProvider extends SocialAbstract {
     profileId: string,
     publishId: string,
     accessToken: string,
-  ): Promise<{ status: 'success'; id: string; url?: string } | { status: 'inbox'; id?: string; url?: string }> {
+  ): Promise<
+    | { status: 'success'; id: string; url?: string }
+    | { status: 'inbox'; id?: string; url?: string }
+  > {
     const maxAttempts = Number(process.env.TIKTOK_POST_STATUS_ATTEMPTS ?? 30);
-    const intervalMs = Number(process.env.TIKTOK_POST_STATUS_INTERVAL_MS ?? 10_000);
+    const intervalMs = Number(
+      process.env.TIKTOK_POST_STATUS_INTERVAL_MS ?? 10_000,
+    );
     let attempts = 0;
 
     while (attempts < maxAttempts) {
@@ -405,14 +455,23 @@ export class TikTokPostingProvider extends SocialAbstract {
           'tiktok-post-status-failed',
           serialized,
           Buffer.from(serialized),
-          handled?.value ?? this.extractErrorMessage(payload) ?? 'Failed to retrieve TikTok publish status',
+          handled?.value ??
+            this.extractErrorMessage(payload) ??
+            'Failed to retrieve TikTok publish status',
         );
       }
 
-      const { status, publicly_available_post_id, publicaly_available_post_id } = payload.data;
+      const {
+        status,
+        publicly_available_post_id,
+        publicaly_available_post_id,
+      } = payload.data;
 
       if (status === 'PUBLISH_COMPLETE') {
-        const postId = publicly_available_post_id?.[0] ?? publicaly_available_post_id?.[0] ?? publishId;
+        const postId =
+          publicly_available_post_id?.[0] ??
+          publicaly_available_post_id?.[0] ??
+          publishId;
         const url = publicly_available_post_id?.[0]
           ? `https://www.tiktok.com/@${profileId}/video/${publicly_available_post_id[0]}`
           : `https://www.tiktok.com/@${profileId}`;
@@ -434,7 +493,9 @@ export class TikTokPostingProvider extends SocialAbstract {
           'tiktok-post-failed',
           serialized,
           Buffer.from(serialized),
-          handled?.value ?? this.extractErrorMessage(payload) ?? 'TikTok marked the publish as failed',
+          handled?.value ??
+            this.extractErrorMessage(payload) ??
+            'TikTok marked the publish as failed',
         );
       }
 
@@ -456,15 +517,16 @@ export class TikTokPostingProvider extends SocialAbstract {
     );
   }
 
-  private handleErrors(body: string):
-    | { type: 'refresh-token' | 'bad-body'; value: string }
-    | undefined {
+  private handleErrors(
+    body: string,
+  ): { type: 'refresh-token' | 'bad-body'; value: string } | undefined {
     const normalized = body.toLowerCase();
 
     if (normalized.includes('access_token_invalid')) {
       return {
         type: 'refresh-token',
-        value: 'Access token invalid, please re-authenticate your TikTok account',
+        value:
+          'Access token invalid, please re-authenticate your TikTok account',
       };
     }
 
@@ -538,14 +600,20 @@ export class TikTokPostingProvider extends SocialAbstract {
       };
     }
 
-    if (normalized.includes('unaudited_client_can_only_post_to_private_accounts')) {
+    if (
+      normalized.includes('unaudited_client_can_only_post_to_private_accounts')
+    ) {
       return {
         type: 'bad-body',
-        value: 'TikTok app is not approved for public posting. Contact support.',
+        value:
+          'TikTok app is not approved for public posting. Contact support.',
       };
     }
 
-    if (normalized.includes('invalid_file_upload') || normalized.includes('invalid_params')) {
+    if (
+      normalized.includes('invalid_file_upload') ||
+      normalized.includes('invalid_params')
+    ) {
       return {
         type: 'bad-body',
         value: 'TikTok rejected the request due to invalid media or parameters',
@@ -555,7 +623,8 @@ export class TikTokPostingProvider extends SocialAbstract {
     if (normalized.includes('internal')) {
       return {
         type: 'bad-body',
-        value: 'TikTok servers reported an internal error. Please try again later.',
+        value:
+          'TikTok servers reported an internal error. Please try again later.',
       };
     }
 
@@ -588,11 +657,15 @@ export class TikTokPostingProvider extends SocialAbstract {
     }
 
     const user = payload.data.user;
-    const openId = typeof user?.open_id === 'string' ? this.normalizeOpenId(user.open_id) : null;
+    const openId =
+      typeof user?.open_id === 'string'
+        ? this.normalizeOpenId(user.open_id)
+        : null;
 
     return {
       openId,
-      displayName: typeof user?.display_name === 'string' ? user.display_name : null,
+      displayName:
+        typeof user?.display_name === 'string' ? user.display_name : null,
       username: typeof user?.username === 'string' ? user.username : null,
       avatarUrl: typeof user?.avatar_url === 'string' ? user.avatar_url : null,
     };
@@ -625,7 +698,7 @@ export class TikTokPostingProvider extends SocialAbstract {
 
   private extractDataObject(payload: any): any {
     if (payload && typeof payload === 'object' && 'data' in payload) {
-      const data = (payload as any).data;
+      const data = payload.data;
       if (data && typeof data === 'object') {
         return data;
       }
@@ -649,7 +722,10 @@ export class TikTokPostingProvider extends SocialAbstract {
       return undefined;
     }
 
-    if (typeof payload.message === 'string' && payload.message.trim().length > 0) {
+    if (
+      typeof payload.message === 'string' &&
+      payload.message.trim().length > 0
+    ) {
       return payload.message;
     }
 
@@ -672,14 +748,17 @@ export class TikTokPostingProvider extends SocialAbstract {
     if (
       typeof payload.data === 'object' &&
       payload.data !== null &&
-      typeof (payload.data as any).error === 'object' &&
-      (payload.data as any).error !== null &&
-      typeof (payload.data as any).error.message === 'string'
+      typeof payload.data.error === 'object' &&
+      payload.data.error !== null &&
+      typeof payload.data.error.message === 'string'
     ) {
-      return (payload.data as any).error.message;
+      return payload.data.error.message;
     }
 
-    if (typeof payload.description === 'string' && payload.description.trim().length > 0) {
+    if (
+      typeof payload.description === 'string' &&
+      payload.description.trim().length > 0
+    ) {
       return payload.description;
     }
 

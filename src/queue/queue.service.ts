@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { Job, JobsOptions, Queue, Worker } from 'bullmq';
 import IORedis, { RedisOptions } from 'ioredis';
 
@@ -20,14 +25,19 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   async onModuleInit(): Promise<void> {
     const redisUrl = process.env.REDIS_URL;
     if (!redisUrl) {
-      this.logger.warn('REDIS_URL is not set; scheduling features are disabled');
+      this.logger.warn(
+        'REDIS_URL is not set; scheduling features are disabled',
+      );
       return;
     }
 
     this.connection = this.createConnection(redisUrl);
-    this.queue = new Queue<ScheduleJobPayload>(process.env.POST_SCHEDULE_QUEUE ?? 'tiktok-posts', {
-      connection: this.connection,
-    });
+    this.queue = new Queue<ScheduleJobPayload>(
+      process.env.POST_SCHEDULE_QUEUE ?? 'tiktok-posts',
+      {
+        connection: this.connection,
+      },
+    );
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -47,8 +57,12 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       throw new Error('Queue not initialised');
     }
 
-    const group = this.sanitizeForJobId(process.env.POST_SCHEDULE_GROUP ?? 'slidescockpit');
-    const baseKey = this.sanitizeForJobId(String(payload.idempotencyKey ?? Date.now()));
+    const group = this.sanitizeForJobId(
+      process.env.POST_SCHEDULE_GROUP ?? 'slidescockpit',
+    );
+    const baseKey = this.sanitizeForJobId(
+      String(payload.idempotencyKey ?? Date.now()),
+    );
     const jobId = `${group}-${baseKey}`;
     return this.queue.add(name, payload, {
       jobId,
@@ -60,7 +74,10 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   }
 
   attachWorker(
-    processor: (payload: ScheduleJobPayload, job: Job<ScheduleJobPayload>) => Promise<void>,
+    processor: (
+      payload: ScheduleJobPayload,
+      job: Job<ScheduleJobPayload>,
+    ) => Promise<void>,
   ): void {
     if (!this.queue || !this.connection) {
       this.logger.warn('Queue not initialised; worker not attached');
@@ -77,10 +94,14 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     }
 
     this.workerConnection = this.createConnection(redisUrl);
-    this.worker = new Worker<ScheduleJobPayload>(this.queue.name, async (job) => processor(job.data, job), {
-      connection: this.workerConnection,
-      concurrency: 1,
-    });
+    this.worker = new Worker<ScheduleJobPayload>(
+      this.queue.name,
+      async (job) => processor(job.data, job),
+      {
+        connection: this.workerConnection,
+        concurrency: 1,
+      },
+    );
   }
 
   isReady(): boolean {

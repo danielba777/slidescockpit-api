@@ -1,4 +1,13 @@
-import { Body, Controller, Delete, Get, Headers, Param, Post, BadRequestException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  Param,
+  Post,
+  BadRequestException,
+} from '@nestjs/common';
 
 import { SessionService } from '../../common/session/session.service';
 import { ConnectTikTokDto } from './dto/connect-tiktok.dto';
@@ -17,13 +26,22 @@ export class TikTokController {
   start(@Headers('x-user-id') userId: string) {
     const resolvedUserId = this.ensureUserId(userId);
     const pendingState = this.sessionService.registerState(resolvedUserId);
-    return this.tikTokService.start(pendingState.state, pendingState.codeVerifier);
+    return this.tikTokService.start(
+      pendingState.state,
+      pendingState.codeVerifier,
+    );
   }
 
   @Post('connect')
-  async connect(@Headers('x-user-id') userId: string, @Body() dto: ConnectTikTokDto) {
+  async connect(
+    @Headers('x-user-id') userId: string,
+    @Body() dto: ConnectTikTokDto,
+  ) {
     const resolvedUserId = this.ensureUserId(userId);
-    const pendingState = this.sessionService.consumeState(resolvedUserId, dto.state);
+    const pendingState = this.sessionService.consumeState(
+      resolvedUserId,
+      dto.state,
+    );
     const account = await this.tikTokService.connect(
       resolvedUserId,
       dto,
@@ -41,11 +59,9 @@ export class TikTokController {
   async listAccounts(@Headers('x-user-id') userId: string) {
     const resolvedUserId = this.ensureUserId(userId);
     const accounts = await this.tikTokService.listAccounts(resolvedUserId);
-    return accounts.map(({ accessToken, refreshToken, ...publicAccount }) => (
-      {
-        ...publicAccount,
-      }
-    ));
+    return accounts.map(({ accessToken, refreshToken, ...publicAccount }) => ({
+      ...publicAccount,
+    }));
   }
 
   @Delete(':openId/disconnect')
@@ -56,7 +72,10 @@ export class TikTokController {
     const resolvedUserId = this.ensureUserId(userId);
     const normalizedOpenId = openId.trim();
 
-    const deleted = await this.tikTokAccountRepository.deleteAccount(resolvedUserId, normalizedOpenId);
+    const deleted = await this.tikTokAccountRepository.deleteAccount(
+      resolvedUserId,
+      normalizedOpenId,
+    );
 
     return {
       success: true,

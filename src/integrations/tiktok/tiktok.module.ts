@@ -13,7 +13,11 @@ import { ScheduledPostRepository } from './scheduled-post.repository';
 
 @Module({
   imports: [SessionModule],
-  controllers: [TikTokController, TikTokPostingController, TikTokScheduleController],
+  controllers: [
+    TikTokController,
+    TikTokPostingController,
+    TikTokScheduleController,
+  ],
   providers: [
     TikTokService,
     TikTokPostingService,

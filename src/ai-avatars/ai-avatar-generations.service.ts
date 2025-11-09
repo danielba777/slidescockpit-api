@@ -29,14 +29,12 @@ export class AiAvatarGenerationsService {
   private readonly bucket =
     process.env.HCLOUD_S3_BUCKET ?? 'slidescockpit-files';
   private readonly publicBaseUrl =
-    process.env.HCLOUD_S3_PUBLIC_BASE_URL ??
-    'https://files.slidescockpit.com';
+    process.env.HCLOUD_S3_PUBLIC_BASE_URL ?? 'https://files.slidescockpit.com';
 
   private readonly s3 = new S3Client({
     region: process.env.HCLOUD_S3_REGION ?? 'nbg1',
     endpoint:
-      process.env.HCLOUD_S3_ENDPOINT ??
-      'https://nbg1.your-objectstorage.com',
+      process.env.HCLOUD_S3_ENDPOINT ?? 'https://nbg1.your-objectstorage.com',
     forcePathStyle: false,
     credentials: {
       accessKeyId: this.requireEnv('HCLOUD_S3_KEY'),
@@ -168,9 +166,7 @@ export class AiAvatarGenerationsService {
         url,
         error,
       });
-      throw new InternalServerErrorException(
-        'Failed to download source image',
-      );
+      throw new InternalServerErrorException('Failed to download source image');
     }
   }
 

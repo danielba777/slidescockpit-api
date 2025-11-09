@@ -31,7 +31,8 @@ export class ScheduledPostRepository {
     const now = new Date();
     const normalizedOpenId = this.normalizeOpenId(options.openId);
     const status = this.mapStatus(options.status);
-    const idempotencyKey = options.idempotencyKey ?? options.publishId ?? randomUUID();
+    const idempotencyKey =
+      options.idempotencyKey ?? options.publishId ?? randomUUID();
 
     return this.prisma.scheduledPost.create({
       data: {
@@ -121,7 +122,10 @@ export class ScheduledPostRepository {
     });
   }
 
-  async markCompletedByJobId(jobId: string, options: CompletionOptions): Promise<void> {
+  async markCompletedByJobId(
+    jobId: string,
+    options: CompletionOptions,
+  ): Promise<void> {
     await this.prisma.scheduledPost.updateMany({
       where: { jobId },
       data: {
@@ -144,7 +148,10 @@ export class ScheduledPostRepository {
     });
   }
 
-  async markCompletedByPublishId(publishId: string, options: CompletionOptions): Promise<void> {
+  async markCompletedByPublishId(
+    publishId: string,
+    options: CompletionOptions,
+  ): Promise<void> {
     const updated = await this.prisma.scheduledPost.updateMany({
       where: { publishId },
       data: {
@@ -155,7 +162,9 @@ export class ScheduledPostRepository {
     });
 
     if (updated.count === 0) {
-      this.logger.debug(`No scheduled post found for publishId=${publishId} to mark as completed`);
+      this.logger.debug(
+        `No scheduled post found for publishId=${publishId} to mark as completed`,
+      );
     }
   }
 

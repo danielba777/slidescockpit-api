@@ -1,8 +1,19 @@
-import { BadRequestException, Body, Controller, Headers, Param, Post, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Headers,
+  Param,
+  Post,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 
 import { QueueService } from '../../queue/queue.service';
 import { ScheduleTikTokDto } from './dto/schedule-tiktok.dto';
-import { PersistPayload, ScheduledPostRepository } from './scheduled-post.repository';
+import {
+  PersistPayload,
+  ScheduledPostRepository,
+} from './scheduled-post.repository';
 import { TikTokPostRequestDto } from './dto/post-tiktok.dto';
 
 @Controller('integrations/social/tiktok')
@@ -29,7 +40,9 @@ export class TikTokScheduleController {
     }
 
     if (!this.queue.isReady()) {
-      throw new ServiceUnavailableException('Scheduling queue is not configured');
+      throw new ServiceUnavailableException(
+        'Scheduling queue is not configured',
+      );
     }
 
     const normalizedOpenId = openId.trim();

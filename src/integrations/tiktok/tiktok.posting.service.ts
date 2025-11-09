@@ -9,7 +9,10 @@ import { TikTokAccountRepository } from './tiktok-account.repository';
 import { TikTokPostRequestDto } from './dto/post-tiktok.dto';
 import { TikTokAccount } from './tiktok.types';
 import { TikTokPostingProvider } from './tiktok.posting.provider';
-import { PersistPayload, ScheduledPostRepository } from './scheduled-post.repository';
+import {
+  PersistPayload,
+  ScheduledPostRepository,
+} from './scheduled-post.repository';
 
 interface TikTokPostOutcome {
   postId: string;
@@ -39,8 +42,12 @@ export class TikTokPostingService {
     }
 
     // Debug: Log current scopes
-    this.logger.debug(`TikTok account current scopes: ${account.scope?.join(', ') || '(none)'}`);
-    this.logger.debug(`Required scopes: ${['user.info.basic', 'video.upload', 'video.publish'].join(', ')}`);
+    this.logger.debug(
+      `TikTok account current scopes: ${account.scope?.join(', ') || '(none)'}`,
+    );
+    this.logger.debug(
+      `Required scopes: ${['user.info.basic', 'video.upload', 'video.publish'].join(', ')}`,
+    );
 
     const readyAccount = await this.ensureFreshToken(account);
 
@@ -74,13 +81,15 @@ export class TikTokPostingService {
       if (options?.jobId) {
         await this.posts.markFailedByJobId(options.jobId, message);
       } else {
-        await this.posts.createImmediatePost({
-          userId,
-          openId,
-          payload: this.toPersistPayload(payload),
-          status: 'failed',
-          idempotencyKey: undefined,
-        }).catch(() => undefined);
+        await this.posts
+          .createImmediatePost({
+            userId,
+            openId,
+            payload: this.toPersistPayload(payload),
+            status: 'failed',
+            idempotencyKey: undefined,
+          })
+          .catch(() => undefined);
       }
 
       if (error instanceof RefreshToken) {
@@ -114,7 +123,10 @@ export class TikTokPostingService {
     const readyAccount = await this.ensureFreshToken(account);
 
     try {
-      const { publishId } = await this.provider.initPostOnly(readyAccount, payload);
+      const { publishId } = await this.provider.initPostOnly(
+        readyAccount,
+        payload,
+      );
       await this.repository.upsertAccount({
         ...readyAccount,
         updatedAt: new Date().toISOString(),
@@ -150,7 +162,11 @@ export class TikTokPostingService {
     userId: string,
     openId: string,
     publishId: string,
-  ): Promise<{ status: 'processing' | 'failed' | 'success' | 'inbox'; postId?: string; releaseUrl?: string }> {
+  ): Promise<{
+    status: 'processing' | 'failed' | 'success' | 'inbox';
+    postId?: string;
+    releaseUrl?: string;
+  }> {
     const account = await this.repository.getAccount(userId, openId);
     if (!account) {
       throw new BadRequestException('TikTok account not found');
@@ -185,7 +201,10 @@ export class TikTokPostingService {
       if (result.status === 'processing') {
         return { status: 'processing' };
       }
-      await this.posts.markFailedByPublishId(publishId, 'TikTok reported failure');
+      await this.posts.markFailedByPublishId(
+        publishId,
+        'TikTok reported failure',
+      );
       return { status: 'failed' };
     } catch (error) {
       if (error instanceof RefreshToken) {
@@ -195,7 +214,10 @@ export class TikTokPostingService {
         this.logger.warn(
           `TikTok status check failed (${error.code}): ${error.hint ?? error.message}`,
         );
-        await this.posts.markFailedByPublishId(publishId, error.hint ?? error.message);
+        await this.posts.markFailedByPublishId(
+          publishId,
+          error.hint ?? error.message,
+        );
         throw new BadRequestException(error.hint ?? error.message);
       }
       throw error;
@@ -206,7 +228,9 @@ export class TikTokPostingService {
     return this.posts.listPosts(userId, openId);
   }
 
-  private async ensureFreshToken(account: TikTokAccount): Promise<TikTokAccount> {
+  private async ensureFreshToken(
+    account: TikTokAccount,
+  ): Promise<TikTokAccount> {
     const expiresAt = Date.parse(account.expiresAt);
     const needsRefresh =
       Number.isNaN(expiresAt) || expiresAt - Date.now() < 60 * 1000;

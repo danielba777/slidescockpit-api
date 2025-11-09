@@ -16,9 +16,7 @@ import { AiAvatarTemplatesService } from './ai-avatar-templates.service';
 
 @Controller('ai-avatars')
 export class AiAvatarTemplatesController {
-  constructor(
-    private readonly templatesService: AiAvatarTemplatesService,
-  ) {}
+  constructor(private readonly templatesService: AiAvatarTemplatesService) {}
 
   @Get('templates')
   listTemplates() {

@@ -31,7 +31,7 @@ export class SessionService {
   private readonly sessionCookieName = 'postiz_auth';
   private readonly sessionTtlMs = 1000 * 60 * 60 * 12; // 12 hours
   private readonly stateTtlMs = 1000 * 60 * 5; // 5 minutes
-  
+
   createSession(user: SessionUser): SessionData {
     const token = randomUUID();
     const id = randomUUID();

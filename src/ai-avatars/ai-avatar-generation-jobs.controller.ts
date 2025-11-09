@@ -13,9 +13,7 @@ import { AiAvatarGenerationJobStatus } from '@prisma/client';
 
 @Controller('ai-avatars')
 export class AiAvatarGenerationJobsController {
-  constructor(
-    private readonly jobsService: AiAvatarGenerationJobsService,
-  ) {}
+  constructor(private readonly jobsService: AiAvatarGenerationJobsService) {}
 
   @Post('generations/jobs')
   async createJob(

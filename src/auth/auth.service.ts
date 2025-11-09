@@ -5,7 +5,11 @@ import {
 } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 
-import { SessionData, SessionService, SessionUser } from '../common/session/session.service';
+import {
+  SessionData,
+  SessionService,
+  SessionUser,
+} from '../common/session/session.service';
 import { LoginDto } from './dto/login.dto';
 
 interface LoginResult {
@@ -26,15 +30,22 @@ export class AuthService {
       throw new InternalServerErrorException('POSTIZ_EMAIL is not configured');
     }
     if (!configuredPassword) {
-      throw new InternalServerErrorException('POSTIZ_PASSWORD is not configured');
+      throw new InternalServerErrorException(
+        'POSTIZ_PASSWORD is not configured',
+      );
     }
     if (!configuredProvider) {
-      throw new InternalServerErrorException('POSTIZ_PROVIDER is not configured');
+      throw new InternalServerErrorException(
+        'POSTIZ_PROVIDER is not configured',
+      );
     }
 
-    const matchesEmail = dto.email.trim().toLowerCase() === configuredEmail.trim().toLowerCase();
+    const matchesEmail =
+      dto.email.trim().toLowerCase() === configuredEmail.trim().toLowerCase();
     const matchesPassword = dto.password === configuredPassword;
-    const matchesProvider = dto.provider.trim().toLowerCase() === configuredProvider.trim().toLowerCase();
+    const matchesProvider =
+      dto.provider.trim().toLowerCase() ===
+      configuredProvider.trim().toLowerCase();
 
     if (!matchesEmail || !matchesPassword || !matchesProvider) {
       throw new UnauthorizedException('Invalid login credentials');
@@ -55,4 +66,3 @@ export class AuthService {
     return `user_${digest.slice(0, 24)}`;
   }
 }
-

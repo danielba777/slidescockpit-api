@@ -10,6 +10,7 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { randomUUID } from 'crypto';
 import { Express } from 'express';
 import sharp from 'sharp';
+import heicConvert from 'heic-convert';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 @Injectable()
@@ -17,14 +18,12 @@ export class SlideshowPostsService {
   private readonly bucket =
     process.env.HCLOUD_S3_BUCKET ?? 'slidescockpit-files';
   private readonly publicBaseUrl =
-    process.env.HCLOUD_S3_PUBLIC_BASE_URL ??
-    'https://files.slidescockpit.com';
+    process.env.HCLOUD_S3_PUBLIC_BASE_URL ?? 'https://files.slidescockpit.com';
 
   private readonly s3 = new S3Client({
     region: process.env.HCLOUD_S3_REGION ?? 'nbg1',
     endpoint:
-      process.env.HCLOUD_S3_ENDPOINT ??
-      'https://nbg1.your-objectstorage.com',
+      process.env.HCLOUD_S3_ENDPOINT ?? 'https://nbg1.your-objectstorage.com',
     forcePathStyle: false,
     credentials: {
       accessKeyId: this.requireEnv('HCLOUD_S3_KEY'),
@@ -156,9 +155,9 @@ export class SlideshowPostsService {
 
   async getAllPosts(limit = 50, category?: string) {
     return this.prisma.slideshowPost.findMany({
-      where: { 
+      where: {
         isActive: true,
-        ...(category && { categories: { has: category } })
+        ...(category && { categories: { has: category } }),
       },
       include: {
         slides: true,
@@ -409,8 +408,9 @@ export class SlideshowPostsService {
         const metadata = await image.metadata();
 
         // For HEIC/HEIF, always convert to JPEG for better browser compatibility
-        const forceJpeg = normalizedContentType.includes('image/heic') ||
-                         normalizedContentType.includes('image/heif');
+        const forceJpeg =
+          normalizedContentType.includes('image/heic') ||
+          normalizedContentType.includes('image/heif');
         const usePng = !forceJpeg && Boolean(metadata.hasAlpha);
 
         const processedBuffer = usePng
@@ -440,17 +440,46 @@ export class SlideshowPostsService {
 
         // If this is HEIC/HEIF and conversion failed, we still need to handle it
         // Upload as original format but note that browser compatibility may be limited
-        const isHeic = normalizedContentType.includes('image/heic') ||
-                      normalizedContentType.includes('image/heif');
+        const isHeic =
+          normalizedContentType.includes('image/heic') ||
+          normalizedContentType.includes('image/heif');
 
         if (isHeic) {
-          console.warn('[SlideshowPostsService] HEIC image uploaded without conversion - browser compatibility limited');
+          try {
+            console.log(
+              '[SlideshowPostsService] Converting HEIC via heic-convert fallback',
+              {
+                imageUrl,
+              },
+            );
+
+            const convertedBuffer = await heicConvert({
+              buffer: originalBuffer,
+              format: 'JPEG',
+              quality: 0.9,
+            });
+
+            return await uploadBuffer(convertedBuffer, 'jpg', 'image/jpeg');
+          } catch (heicConversionError) {
+            console.error(
+              '[SlideshowPostsService] heic-convert fallback failed',
+              {
+                imageUrl,
+                error: heicConversionError,
+              },
+            );
+          }
+
+          console.warn(
+            '[SlideshowPostsService] HEIC image uploaded without conversion - browser compatibility limited',
+          );
         }
 
         return await uploadBuffer(
           originalBuffer,
           inferExtension(),
-          contentTypeHeader || (isHeic ? 'image/heic' : 'application/octet-stream'),
+          contentTypeHeader ||
+            (isHeic ? 'image/heic' : 'application/octet-stream'),
         );
       }
     } catch (error) {

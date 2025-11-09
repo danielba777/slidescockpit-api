@@ -33,16 +33,18 @@ export class TikTokService {
   private readonly clientKey = this.requireEnv('TIKTOK_CLIENT_KEY');
   private readonly clientSecret = this.requireEnv('TIKTOK_CLIENT_SECRET');
   private readonly redirectUri = this.requireEnv('TIKTOK_REDIRECT_URI');
-  private readonly requiredScopes = ['user.info.basic', 'video.upload', 'video.publish'];
+  private readonly requiredScopes = [
+    'user.info.basic',
+    'video.upload',
+    'video.publish',
+  ];
   private readonly scopes = this.getScopes();
   private readonly forceVerify =
     (process.env.TIKTOK_FORCE_VERIFY ?? 'false').toLowerCase() === 'true';
   private readonly mockMode =
     (process.env.TIKTOK_MOCK ?? 'false').toLowerCase() === 'true';
 
-  constructor(
-    private readonly repository: TikTokAccountRepository,
-  ) {}
+  constructor(private readonly repository: TikTokAccountRepository) {}
 
   start(state: string, codeVerifier: string): { url: string } {
     const url = this.buildAuthorizeUrl(state, codeVerifier);
@@ -71,7 +73,8 @@ export class TikTokService {
     const now = new Date();
     const timezoneOffsetMinutes = this.parseTimezone(dto.timezone);
 
-    const rawOpenId = userInfo.openId ?? token.openId ?? this.ensureOpenId(token);
+    const rawOpenId =
+      userInfo.openId ?? token.openId ?? this.ensureOpenId(token);
     const normalizedOpenId = this.normalizeOpenId(rawOpenId);
 
     const account: TikTokAccount = {
@@ -115,14 +118,20 @@ export class TikTokService {
       form.set('code_verifier', codeVerifier);
     }
 
-    const response = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+    const response = await fetch(
+      'https://open.tiktokapis.com/v2/oauth/token/',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: form.toString(),
       },
-      body: form.toString(),
-    }).catch((error: unknown) => {
-      this.logger.error(`Failed to reach TikTok token endpoint`, error as Error);
+    ).catch((error: unknown) => {
+      this.logger.error(
+        `Failed to reach TikTok token endpoint`,
+        error as Error,
+      );
       throw new BadRequestException('Unable to reach TikTok token endpoint');
     });
 
@@ -131,27 +140,24 @@ export class TikTokService {
 
     if (!response.ok) {
       const message =
-        (typeof data === 'object' && (data as any)?.message) ||
-        (typeof (data as any)?.error_msg === 'string' && (data as any).error_msg) ||
+        (typeof data === 'object' && data?.message) ||
+        (typeof data?.error_msg === 'string' && data.error_msg) ||
         'TikTok token exchange failed';
       throw new BadRequestException(message);
     }
 
-    const scope = this.parseScopes(
-      (data as any)?.scope ?? (payload as any)?.scope ?? [],
-    );
+    const scope = this.parseScopes(data?.scope ?? payload?.scope ?? []);
 
     return {
-      accessToken: (data as any)?.access_token,
-      refreshToken: (data as any)?.refresh_token ?? null,
-      expiresIn:
-        typeof (data as any)?.expires_in === 'number' ? (data as any).expires_in : null,
+      accessToken: data?.access_token,
+      refreshToken: data?.refresh_token ?? null,
+      expiresIn: typeof data?.expires_in === 'number' ? data.expires_in : null,
       refreshExpiresIn:
-        typeof (data as any)?.refresh_expires_in === 'number'
-          ? (data as any).refresh_expires_in
+        typeof data?.refresh_expires_in === 'number'
+          ? data.refresh_expires_in
           : null,
       scope,
-      openId: typeof (data as any)?.open_id === 'string' ? (data as any).open_id : null,
+      openId: typeof data?.open_id === 'string' ? data.open_id : null,
     };
   }
 
@@ -169,8 +175,13 @@ export class TikTokService {
         },
       },
     ).catch((error: unknown) => {
-      this.logger.error(`Failed to reach TikTok user info endpoint`, error as Error);
-      throw new BadRequestException('Unable to fetch TikTok profile information');
+      this.logger.error(
+        `Failed to reach TikTok user info endpoint`,
+        error as Error,
+      );
+      throw new BadRequestException(
+        'Unable to fetch TikTok profile information',
+      );
     });
 
     const payload = await this.safeJson(response);
@@ -178,7 +189,9 @@ export class TikTokService {
     const user: any = data?.user ?? {};
 
     if (!response.ok) {
-      const message = this.extractErrorMessage(payload) ?? 'TikTok user info retrieval failed';
+      const message =
+        this.extractErrorMessage(payload) ??
+        'TikTok user info retrieval failed';
       this.logger.warn(
         `TikTok user info request failed (status ${response.status}): ${message}`,
       );
@@ -194,8 +207,7 @@ export class TikTokService {
         typeof user?.display_name === 'string' ? user.display_name : null,
       username: typeof user?.username === 'string' ? user.username : null,
       unionId: typeof user?.union_id === 'string' ? user.union_id : null,
-      avatarUrl:
-        typeof user?.avatar_url === 'string' ? user.avatar_url : null,
+      avatarUrl: typeof user?.avatar_url === 'string' ? user.avatar_url : null,
     };
   }
 
@@ -304,7 +316,7 @@ export class TikTokService {
 
   private extractDataObject(payload: any): any {
     if (payload && typeof payload === 'object' && 'data' in payload) {
-      const data = (payload as any).data;
+      const data = payload.data;
       if (data && typeof data === 'object') {
         return data;
       }
@@ -336,7 +348,10 @@ export class TikTokService {
       return undefined;
     }
 
-    if (typeof payload.message === 'string' && payload.message.trim().length > 0) {
+    if (
+      typeof payload.message === 'string' &&
+      payload.message.trim().length > 0
+    ) {
       return payload.message;
     }
 
@@ -351,17 +366,20 @@ export class TikTokService {
     if (
       typeof payload.data === 'object' &&
       payload.data !== null &&
-      typeof (payload.data as any).error === 'object' &&
-      (payload.data as any).error !== null &&
-      typeof (payload.data as any).error.message === 'string'
+      typeof payload.data.error === 'object' &&
+      payload.data.error !== null &&
+      typeof payload.data.error.message === 'string'
     ) {
-      return (payload.data as any).error.message;
+      return payload.data.error.message;
     }
 
     return undefined;
   }
 
-  private buildMockAccount(dto: ConnectTikTokDto, userId: string): TikTokAccount {
+  private buildMockAccount(
+    dto: ConnectTikTokDto,
+    userId: string,
+  ): TikTokAccount {
     const now = new Date();
     const accessToken = `mock_access_${randomBytes(8).toString('hex')}`;
     const refreshToken = `mock_refresh_${randomBytes(8).toString('hex')}`;

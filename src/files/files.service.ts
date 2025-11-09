@@ -10,12 +10,15 @@ interface PresignParams {
 
 @Injectable()
 export class FilesService {
-  private readonly bucket = process.env.HCLOUD_S3_BUCKET ?? 'slidescockpit-files';
-  private readonly publicBaseUrl = process.env.HCLOUD_S3_PUBLIC_BASE_URL ?? 'https://files.slidescockpit.com';
+  private readonly bucket =
+    process.env.HCLOUD_S3_BUCKET ?? 'slidescockpit-files';
+  private readonly publicBaseUrl =
+    process.env.HCLOUD_S3_PUBLIC_BASE_URL ?? 'https://files.slidescockpit.com';
 
   private readonly s3 = new S3Client({
     region: process.env.HCLOUD_S3_REGION ?? 'nbg1',
-    endpoint: process.env.HCLOUD_S3_ENDPOINT ?? 'https://nbg1.your-objectstorage.com',
+    endpoint:
+      process.env.HCLOUD_S3_ENDPOINT ?? 'https://nbg1.your-objectstorage.com',
     forcePathStyle: false,
     credentials: {
       accessKeyId: this.requireEnv('HCLOUD_S3_KEY'),
@@ -24,7 +27,11 @@ export class FilesService {
   });
 
   async createUploadUrl(params: PresignParams) {
-    const { key, contentType = 'application/octet-stream', expiresInSec = 900 } = params;
+    const {
+      key,
+      contentType = 'application/octet-stream',
+      expiresInSec = 900,
+    } = params;
     const normalizedKey = this.normalizeKey(key);
 
     const command = new PutObjectCommand({
@@ -34,7 +41,9 @@ export class FilesService {
       ACL: 'private',
     });
 
-    const uploadUrl = await getSignedUrl(this.s3, command, { expiresIn: expiresInSec });
+    const uploadUrl = await getSignedUrl(this.s3, command, {
+      expiresIn: expiresInSec,
+    });
     const publicUrl = `${this.publicBaseUrl}/${encodeURI(normalizedKey)}`;
 
     return {
@@ -59,7 +68,9 @@ export class FilesService {
   private requireEnv(name: string): string {
     const value = process.env[name];
     if (!value || value.trim().length === 0) {
-      throw new InternalServerErrorException(`${name} environment variable is not configured`);
+      throw new InternalServerErrorException(
+        `${name} environment variable is not configured`,
+      );
     }
     return value;
   }

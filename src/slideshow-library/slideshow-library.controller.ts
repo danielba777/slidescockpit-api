@@ -77,7 +77,7 @@ export class SlideshowLibraryController {
   @Get('posts')
   async getAllPosts(
     @Query('limit') limit?: number,
-    @Query('category') category?: string
+    @Query('category') category?: string,
   ) {
     return this.postsService.getAllPosts(limit, category);
   }
@@ -114,9 +114,7 @@ export class SlideshowLibraryController {
   }
 
   @Post('user-posts')
-  async addPostToUser(
-    @Body() body: { userId?: string; postId?: string },
-  ) {
+  async addPostToUser(@Body() body: { userId?: string; postId?: string }) {
     if (!body?.userId || !body?.postId) {
       throw new BadRequestException('Missing userId or postId');
     }
@@ -131,7 +129,7 @@ export class SlideshowLibraryController {
       post,
     };
   }
-  
+
   @Delete('posts/:id')
   async deletePost(@Param('id') id: string) {
     return this.postsService.deletePost(id);

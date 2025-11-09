@@ -44,11 +44,14 @@ export class SoundsService {
         }),
       );
       if (res.Contents?.length) objects.push(...res.Contents);
-      ContinuationToken = res.IsTruncated ? res.NextContinuationToken : undefined;
+      ContinuationToken = res.IsTruncated
+        ? res.NextContinuationToken
+        : undefined;
     } while (ContinuationToken);
 
     // Mappe Cover-Dateien zu ihrer Audio-Basis
-    const isCover = (k: string) => /\.cover\.(png|jpe?g|webp|gif|avif)$/i.test(k);
+    const isCover = (k: string) =>
+      /\.cover\.(png|jpe?g|webp|gif|avif)$/i.test(k);
     const isAudio = (k: string) =>
       /\.(mp3|m4a|aac|wav|ogg|flac)$/i.test(k) && !isCover(k);
 

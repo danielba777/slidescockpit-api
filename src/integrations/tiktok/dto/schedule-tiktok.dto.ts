@@ -1,5 +1,10 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsNotEmpty, IsString, ValidateNested } from 'class-validator';
+import {
+  IsDateString,
+  IsNotEmpty,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 
 import { TikTokPostRequestDto } from './post-tiktok.dto';
 
@@ -15,4 +20,3 @@ export class ScheduleTikTokDto {
   @Type(() => TikTokPostRequestDto)
   post!: TikTokPostRequestDto;
 }
-
