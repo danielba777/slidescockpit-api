@@ -153,8 +153,8 @@ export class SlideshowPostsService {
     });
   }
 
-  async getAllPosts(limit = 50, category?: string) {
-    return this.prisma.slideshowPost.findMany({
+  async getAllPosts(limit = 60, offset = 0, category?: string, shuffle = false) {
+    const posts = await this.prisma.slideshowPost.findMany({
       where: {
         isActive: true,
         ...(category && { categories: { has: category } }),
@@ -163,9 +163,36 @@ export class SlideshowPostsService {
         slides: true,
         account: true,
       },
-      orderBy: { publishedAt: 'desc' },
+      orderBy: shuffle ? { id: 'asc' } : { publishedAt: 'desc' },
       take: limit,
+      skip: offset,
     });
+
+    // If shuffle is true, shuffle the results in memory
+    const shuffledPosts = shuffle ? this.shuffleArray(posts) : posts;
+
+    // Get total count for pagination
+    const totalCount = await this.prisma.slideshowPost.count({
+      where: {
+        isActive: true,
+        ...(category && { categories: { has: category } }),
+      },
+    });
+
+    return {
+      posts: shuffledPosts,
+      totalCount,
+      hasMore: offset + limit < totalCount,
+    };
+  }
+
+  private shuffleArray<T>(array: T[]): T[] {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
   }
 
   async getPostById(id: string) {

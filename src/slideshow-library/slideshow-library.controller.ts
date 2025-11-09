@@ -77,9 +77,11 @@ export class SlideshowLibraryController {
   @Get('posts')
   async getAllPosts(
     @Query('limit') limit?: number,
+    @Query('offset') offset?: number,
     @Query('category') category?: string,
+    @Query('shuffle') shuffle?: string,
   ) {
-    return this.postsService.getAllPosts(limit, category);
+    return this.postsService.getAllPosts(limit, offset, category, shuffle === 'true');
   }
 
   @Get('posts/categories')
